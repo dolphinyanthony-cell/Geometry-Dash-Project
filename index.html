@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>GD Clone (Better Music)</title>
+<title>GD Clone (Full Song)</title>
 <style>
 body { margin:0; overflow:hidden; background:#111; }
 canvas { display:block; }
@@ -21,110 +21,146 @@ button { padding:8px 12px; margin-right:5px; background:#333; color:white; borde
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
-
 function resize(){ canvas.width=innerWidth; canvas.height=innerHeight; }
 addEventListener("resize", resize); resize();
 
 let gravity=0.6, jumpForce=-12, speed=6;
 let gameOver=false, started=false;
 
-// 🎵 ADVANCED MUSIC ENGINE
-let audioCtx, musicOn=true, musicStarted=false;
+// 🎵 FULL MUSIC ENGINE
+let audioCtx, musicOn=true, startedMusic=false;
 
 function osc(type,freq,time,dur,vol=0.1){
   let o=audioCtx.createOscillator();
   let g=audioCtx.createGain();
+
   o.type=type;
   o.frequency.setValueAtTime(freq,time);
 
+  // smooth envelope
   g.gain.setValueAtTime(0.0001,time);
-  g.gain.exponentialRampToValueAtTime(vol,time+0.02);
+  g.gain.linearRampToValueAtTime(vol,time+0.02);
   g.gain.exponentialRampToValueAtTime(0.0001,time+dur);
 
   o.connect(g); g.connect(audioCtx.destination);
   o.start(time); o.stop(time+dur);
 }
 
-// chords (C minor vibe)
-const chords = [
+// chords (minor EDM feel)
+const prog = [
   [261.6,311.1,392.0], // Cm
-  [233.1,293.7,349.2], // Bb
   [207.7,261.6,311.1], // Ab
-  [233.1,293.7,349.2]  // Bb
+  [233.1,293.7,349.2], // Bb
+  [261.6,311.1,392.0]  // Cm
 ];
 
-// melody notes
-const melody = [
-  523,587,659,587,523,494,523,
-  659,698,784,698,659,587
+// lead melody (more variation)
+const lead = [
+  523,587,659,698,659,587,523,
+  659,784,880,784,659,587,
+  523,659,784,880,988,880,784
 ];
 
 function startMusic(){
-  if(musicStarted) return;
+  if(startedMusic) return;
   audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-  musicStarted=true;
+  startedMusic=true;
 
-  let tempo=130;
+  let tempo=140;
   let beat=60/tempo;
   let t=audioCtx.currentTime;
+  let section=0;
 
   function loop(){
     if(!musicOn || gameOver) return;
 
-    // chords
-    chords.forEach((chord,i)=>{
-      chord.forEach(n=>{
-        osc("sawtooth",n,t+i*4*beat,3*beat,0.05);
+    // INTRO
+    if(section===0){
+      prog.forEach((chord,i)=>{
+        chord.forEach(n=>{
+          osc("sine",n,t+i*4*beat,4*beat,0.03);
+        });
       });
-    });
+    }
 
-    // melody
-    melody.forEach((n,i)=>{
-      osc("triangle",n,t+i*beat*0.8,0.3,0.12);
-    });
+    // BUILD
+    if(section===1){
+      prog.forEach((chord,i)=>{
+        chord.forEach(n=>{
+          osc("triangle",n,t+i*4*beat,4*beat,0.05);
+        });
+      });
+      lead.forEach((n,i)=>{
+        osc("square",n,t+i*beat*0.5,0.2,0.07);
+      });
+    }
 
-    // drums
-    for(let i=0;i<16;i++){
-      let time = t + i*beat;
+    // DROP
+    if(section>=2){
+      prog.forEach((chord,i)=>{
+        chord.forEach(n=>{
+          osc("sawtooth",n,t+i*4*beat,4*beat,0.07);
+        });
+      });
 
-      // kick
-      if(i%4===0){
-        let o=audioCtx.createOscillator();
-        let g=audioCtx.createGain();
-        o.frequency.setValueAtTime(120,time);
-        o.frequency.exponentialRampToValueAtTime(40,time+0.1);
-        g.gain.setValueAtTime(0.3,time);
-        g.gain.exponentialRampToValueAtTime(0.0001,time+0.2);
-        o.connect(g); g.connect(audioCtx.destination);
-        o.start(time); o.stop(time+0.2);
-      }
+      // bass
+      prog.forEach((chord,i)=>{
+        osc("square",chord[0]/2,t+i*4*beat,4*beat,0.12);
+      });
 
-      // snare
-      if(i%4===2){
-        let noise = audioCtx.createBufferSource();
-        let buffer = audioCtx.createBuffer(1,44100,44100);
-        let data = buffer.getChannelData(0);
-        for(let j=0;j<44100;j++){ data[j]=Math.random()*2-1; }
-        noise.buffer = buffer;
+      // lead
+      lead.forEach((n,i)=>{
+        osc("triangle",n,t+i*beat*0.4,0.15,0.12);
+      });
 
-        let g = audioCtx.createGain();
-        g.gain.setValueAtTime(0.2,time);
-        g.gain.exponentialRampToValueAtTime(0.0001,time+0.2);
+      // drums
+      for(let i=0;i<32;i++){
+        let time=t+i*beat;
 
-        noise.connect(g);
-        g.connect(audioCtx.destination);
-        noise.start(time);
+        // kick
+        if(i%4===0){
+          let o=audioCtx.createOscillator();
+          let g=audioCtx.createGain();
+          o.frequency.setValueAtTime(120,time);
+          o.frequency.exponentialRampToValueAtTime(40,time+0.1);
+          g.gain.setValueAtTime(0.4,time);
+          g.gain.exponentialRampToValueAtTime(0.0001,time+0.2);
+          o.connect(g); g.connect(audioCtx.destination);
+          o.start(time); o.stop(time+0.2);
+        }
+
+        // snare
+        if(i%4===2){
+          let buffer = audioCtx.createBuffer(1,44100,44100);
+          let data = buffer.getChannelData(0);
+          for(let j=0;j<44100;j++){ data[j]=Math.random()*2-1; }
+
+          let noise = audioCtx.createBufferSource();
+          noise.buffer = buffer;
+
+          let g = audioCtx.createGain();
+          g.gain.setValueAtTime(0.2,time);
+          g.gain.exponentialRampToValueAtTime(0.0001,time+0.2);
+
+          noise.connect(g);
+          g.connect(audioCtx.destination);
+          noise.start(time);
+        }
       }
     }
 
+    // advance sections
+    section++;
+    if(section>3) section=2; // stay in drop loop
+
     t += 16*beat;
-    setTimeout(loop, 16*beat*1000);
+    setTimeout(loop,16*beat*1000);
   }
 
   loop();
 }
 
-// 🎮 GAME (same as before but clean)
+// 🎮 GAME (same)
 class Player{
   constructor(){ this.x=150; this.y=canvas.height-150; this.s=40; this.vy=0; this.g=false; this.r=0;}
   update(){
@@ -203,7 +239,6 @@ function draw(){
 
 function loop(){ update(); draw(); requestAnimationFrame(loop); }
 
-// controls
 function startAll(){
   if(!started){
     started=true;
