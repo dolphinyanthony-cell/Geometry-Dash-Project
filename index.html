@@ -3,12 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Geometry Dash Style Clone (Fixed)</title>
+<title>Geometry Dash Style Clone (With Music)</title>
 <style>
 body { margin:0; overflow:hidden; background:#111; font-family:Arial; }
 canvas { display:block; }
 #ui { position:absolute; top:10px; left:10px; color:white; z-index:10; }
-button { padding:8px 12px; background:#333; border:none; color:white; cursor:pointer; }
+button { padding:8px 12px; background:#333; border:none; color:white; cursor:pointer; margin-right:5px; }
 button:hover { background:#555; }
 </style>
 </head>
@@ -17,6 +17,7 @@ button:hover { background:#555; }
 <div id="ui">
   <div id="score">Score: 0</div>
   <button id="restartBtn">Restart</button>
+  <button id="musicBtn">Music: ON</button>
 </div>
 <script>
 const canvas = document.getElementById('game');
@@ -34,6 +35,40 @@ let jumpForce = -12;
 let speed = 6;
 let score = 0;
 let gameOver = false;
+
+// ---- MUSIC SYSTEM (Web Audio API) ----
+let audioCtx = null;
+let musicOn = true;
+let beatInterval = null;
+
+function startMusic(){
+  if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+  if(beatInterval) return;
+
+  beatInterval = setInterval(()=>{
+    if(!musicOn) return;
+
+    let osc = audioCtx.createOscillator();
+    let gain = audioCtx.createGain();
+
+    osc.type = 'square';
+    osc.frequency.value = 220 + Math.random()*40;
+
+    gain.gain.value = 0.1;
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.08);
+  }, 250);
+}
+
+function toggleMusic(){
+  musicOn = !musicOn;
+  document.getElementById('musicBtn').innerText = 'Music: ' + (musicOn ? 'ON' : 'OFF');
+}
 
 class Player {
   constructor(){
@@ -171,22 +206,27 @@ function loop(){
   requestAnimationFrame(loop);
 }
 
-// FIX: prevent space from clicking the restart button
 window.addEventListener('keydown', e=>{
   if(e.code === 'Space'){
     e.preventDefault();
+    startMusic();
     player.jump();
   }
 });
 
-window.addEventListener('mousedown', ()=> player.jump());
+window.addEventListener('mousedown', ()=>{
+  startMusic();
+  player.jump();
+});
 
-// restart button ONLY restarts when clicked
 const btn = document.getElementById('restartBtn');
 btn.addEventListener('click', (e)=>{
   e.stopPropagation();
   init();
 });
+
+const musicBtn = document.getElementById('musicBtn');
+musicBtn.addEventListener('click', toggleMusic);
 
 init();
 loop();
