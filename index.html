@@ -3,31 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GD Clone (Working)</title>
+<title>GD Clone (Custom Music)</title>
 <style>
 body { margin:0; overflow:hidden; background:#111; }
 canvas { display:block; }
-#ui {
-  position:absolute;
-  top:10px;
-  left:10px;
-  color:white;
-}
-button {
-  padding:8px 12px;
-  margin-right:5px;
-  background:#333;
-  border:none;
-  color:white;
-  cursor:pointer;
-}
+#ui { position:absolute; top:10px; left:10px; }
+button { padding:8px 12px; margin-right:5px; background:#333; border:none; color:white; cursor:pointer; }
 button:hover { background:#555; }
 </style>
 </head>
 <body>
 
 <canvas id="game"></canvas>
-
 <div id="ui">
   <button id="restartBtn">Restart</button>
   <button id="musicBtn">Music: ON</button>
@@ -37,237 +24,164 @@ button:hover { background:#555; }
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-function resize() {
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-}
-window.addEventListener("resize", resize);
-resize();
+function resize(){ canvas.width = innerWidth; canvas.height = innerHeight; }
+addEventListener("resize", resize); resize();
 
-let gravity = 0.6;
-let jumpForce = -12;
-let speed = 6;
+let gravity=0.6, jumpForce=-12, speed=6;
+let score=0, gameOver=false, started=false;
 
-let score = 0;
-let gameOver = false;
-let started = false;
+// 🎵 BETTER MUSIC SYSTEM
+let audioCtx, musicOn=true, musicStarted=false;
 
-let audioCtx;
-let musicOn = true;
-let beatInterval;
+function playTone(freq, time, duration, type="sawtooth"){
+  let osc = audioCtx.createOscillator();
+  let gain = audioCtx.createGain();
 
-// ---- SIMPLE BUILT-IN MUSIC ----
-function startMusic() {
-  if (!audioCtx) {
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  }
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, time);
 
-  if (beatInterval) return;
+  gain.gain.setValueAtTime(0.0001, time);
+  gain.gain.exponentialRampToValueAtTime(0.15, time+0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, time+duration);
 
-  beatInterval = setInterval(() => {
-    if (!musicOn || gameOver) return;
+  osc.connect(gain);
+  gain.connect(audioCtx.destination);
 
-    let osc = audioCtx.createOscillator();
-    let gain = audioCtx.createGain();
-
-    osc.type = "square";
-    osc.frequency.value = 200 + Math.random() * 50;
-    gain.gain.value = 0.08;
-
-    osc.connect(gain);
-    gain.connect(audioCtx.destination);
-
-    osc.start();
-    osc.stop(audioCtx.currentTime + 0.1);
-  }, 250);
+  osc.start(time);
+  osc.stop(time+duration);
 }
 
-function stopMusic() {
-  clearInterval(beatInterval);
-  beatInterval = null;
+// Melody pattern (GD-style)
+const melody = [
+  440, 660, 550, 660,
+  880, 660, 550, 440,
+  660, 880, 990, 880
+];
+
+function startMusic(){
+  if(musicStarted) return;
+  audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+  musicStarted=true;
+
+  let tempo=140;
+  let beat=60/tempo;
+  let t=audioCtx.currentTime;
+
+  function loop(){
+    if(!musicOn || gameOver) return;
+
+    melody.forEach((note,i)=>{
+      playTone(note, t + i*beat, 0.2);
+
+      // bass
+      if(i%2===0){
+        playTone(note/2, t + i*beat, 0.3, "square");
+      }
+    });
+
+    t += melody.length * beat;
+    setTimeout(loop, melody.length*beat*1000);
+  }
+
+  loop();
 }
 
-// ---- PLAYER ----
-class Player {
-  constructor() {
-    this.x = 150;
-    this.y = canvas.height - 150;
-    this.size = 40;
-    this.velY = 0;
-    this.onGround = false;
-    this.rotation = 0;
+function stopMusic(){ musicStarted=false; }
+
+// PLAYER
+class Player{
+  constructor(){ this.x=150; this.y=canvas.height-150; this.size=40; this.velY=0; this.onGround=false; this.rot=0; }
+  update(){
+    this.velY+=gravity; this.y+=this.velY;
+    if(this.y+this.size>=canvas.height-100){
+      this.y=canvas.height-100-this.size;
+      this.velY=0; this.onGround=true; this.rot=0;
+    } else { this.onGround=false; this.rot+=0.1; }
   }
-
-  update() {
-    this.velY += gravity;
-    this.y += this.velY;
-
-    if (this.y + this.size >= canvas.height - 100) {
-      this.y = canvas.height - 100 - this.size;
-      this.velY = 0;
-      this.onGround = true;
-      this.rotation = 0;
-    } else {
-      this.onGround = false;
-      this.rotation += 0.1;
-    }
-  }
-
-  draw() {
-    ctx.save();
-    ctx.translate(this.x + this.size/2, this.y + this.size/2);
-    ctx.rotate(this.rotation);
-    ctx.fillStyle = "#0ff";
-    ctx.fillRect(-this.size/2, -this.size/2, this.size, this.size);
+  draw(){
+    ctx.save(); ctx.translate(this.x+20,this.y+20); ctx.rotate(this.rot);
+    ctx.fillStyle="#0ff"; ctx.fillRect(-20,-20,40,40);
     ctx.restore();
   }
-
-  jump() {
-    if (this.onGround && !gameOver && started) {
-      this.velY = jumpForce;
-    }
-  }
+  jump(){ if(this.onGround && started && !gameOver) this.velY=jumpForce; }
 }
 
-// ---- OBSTACLE ----
-class Obstacle {
-  constructor(x) {
-    this.x = x;
-    this.width = 40;
-    this.height = 60;
-    this.y = canvas.height - 100 - this.height;
-  }
-
-  update() {
-    this.x -= speed;
-  }
-
-  draw() {
-    ctx.fillStyle = "#f00";
+class Obstacle{
+  constructor(x){ this.x=x; this.w=40; this.h=60; this.y=canvas.height-100-this.h; }
+  update(){ this.x-=speed; }
+  draw(){
+    ctx.fillStyle="#f00";
     ctx.beginPath();
-    ctx.moveTo(this.x, this.y + this.height);
-    ctx.lineTo(this.x + this.width/2, this.y);
-    ctx.lineTo(this.x + this.width, this.y + this.height);
-    ctx.closePath();
+    ctx.moveTo(this.x,this.y+this.h);
+    ctx.lineTo(this.x+20,this.y);
+    ctx.lineTo(this.x+40,this.y+this.h);
     ctx.fill();
   }
 }
 
 let player, obstacles, frame;
 
-function init() {
-  player = new Player();
-  obstacles = [];
-  frame = 0;
-  score = 0;
-  gameOver = false;
-  started = false;
-  stopMusic();
+function init(){
+  player=new Player(); obstacles=[]; frame=0; score=0;
+  gameOver=false; started=false;
 }
 
-// ---- GAME LOGIC ----
-function spawnObstacle() {
-  if (frame % 100 === 0) {
-    obstacles.push(new Obstacle(canvas.width));
+function spawn(){ if(frame%100===0) obstacles.push(new Obstacle(canvas.width)); }
+
+function collide(p,o){
+  return p.x<o.x+o.w && p.x+40>o.x && p.y<o.y+o.h && p.y+40>o.y;
+}
+
+function update(){
+  if(!started||gameOver) return;
+  frame++; score++;
+  player.update(); spawn();
+
+  for(let i=obstacles.length-1;i>=0;i--){
+    let o=obstacles[i]; o.update();
+    if(collide(player,o)){ gameOver=true; }
+    if(o.x+o.w<0) obstacles.splice(i,1);
   }
 }
 
-function collide(p, o) {
-  return (
-    p.x < o.x + o.width &&
-    p.x + p.size > o.x &&
-    p.y < o.y + o.height &&
-    p.y + p.size > o.y
-  );
-}
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle="#222"; ctx.fillRect(0,canvas.height-100,canvas.width,100);
+  player.draw(); obstacles.forEach(o=>o.draw());
 
-function update() {
-  if (!started || gameOver) return;
+  if(!started){
+    ctx.fillStyle="white";
+    ctx.font="40px Arial";
+    ctx.fillText("CLICK TO START",canvas.width/2-170,canvas.height/2);
+  }
 
-  frame++;
-  score++;
-
-  player.update();
-  spawnObstacle();
-
-  for (let i = obstacles.length - 1; i >= 0; i--) {
-    let o = obstacles[i];
-    o.update();
-
-    if (collide(player, o)) {
-      gameOver = true;
-      stopMusic();
-    }
-
-    if (o.x + o.width < 0) {
-      obstacles.splice(i, 1);
-    }
+  if(gameOver){
+    ctx.fillStyle="white";
+    ctx.font="50px Arial";
+    ctx.fillText("GAME OVER",canvas.width/2-150,canvas.height/2);
   }
 }
 
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
+function loop(){ update(); draw(); requestAnimationFrame(loop); }
 
-  ctx.fillStyle = "#222";
-  ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
-
-  player.draw();
-  obstacles.forEach(o => o.draw());
-
-  if (!started) {
-    ctx.fillStyle = "white";
-    ctx.font = "40px Arial";
-    ctx.fillText("CLICK OR PRESS SPACE", canvas.width/2 - 220, canvas.height/2);
-  }
-
-  if (gameOver) {
-    ctx.fillStyle = "white";
-    ctx.font = "50px Arial";
-    ctx.fillText("GAME OVER", canvas.width/2 - 150, canvas.height/2);
+function startAll(){
+  if(!started){
+    started=true;
+    if(musicOn) startMusic();
   }
 }
 
-function loop() {
-  update();
-  draw();
-  requestAnimationFrame(loop);
-}
+addEventListener("mousedown",()=>{ startAll(); player.jump(); });
+addEventListener("keydown",e=>{ if(e.code==="Space"){ e.preventDefault(); startAll(); player.jump(); }});
 
-// ---- INPUT ----
-function startEverything() {
-  if (!started) {
-    started = true;
-    startMusic();
-  }
-}
-
-window.addEventListener("mousedown", () => {
-  startEverything();
-  player.jump();
-});
-
-window.addEventListener("keydown", e => {
-  if (e.code === "Space") {
-    e.preventDefault();
-    startEverything();
-    player.jump();
-  }
-});
-
-// ---- UI ----
-document.getElementById("restartBtn").onclick = () => {
-  init();
+// UI
+restartBtn.onclick=()=>init();
+musicBtn.onclick=function(){
+  musicOn=!musicOn;
+  this.innerText="Music: "+(musicOn?"ON":"OFF");
 };
 
-document.getElementById("musicBtn").onclick = function() {
-  musicOn = !musicOn;
-  this.innerText = "Music: " + (musicOn ? "ON" : "OFF");
-};
-
-// ---- START ----
-init();
-loop();
+init(); loop();
 </script>
-
 </body>
 </html>
