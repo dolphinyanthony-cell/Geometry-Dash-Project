@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Geometry Dash Style Clone (Synced Music)</title>
+<title>Geometry Dash Clone (Menu Music + Full Reset)</title>
 <style>
 body { margin:0; overflow:hidden; background:#111; font-family:Arial; }
 canvas { display:block; }
@@ -16,12 +16,17 @@ button:hover { background:#555; }
 <canvas id="game"></canvas>
 <div id="ui">
   <div id="score">Score: 0</div>
+  <button id="startBtn">Start</button>
   <button id="restartBtn">Restart</button>
-  <button id="startBtn">Press Start</button>
 </div>
+
+<!-- Replace this file with your own GD-style music if you want -->
+<audio id="music" src="https://cdn.pixabay.com/download/audio/2023/03/06/audio_124bfa7c2f.mp3?filename=arcade-start-132660.mp3"></audio>
+
 <script>
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
+const music = document.getElementById('music');
 
 function resize(){
   canvas.width = window.innerWidth;
@@ -36,35 +41,6 @@ let speed = 6;
 let score = 0;
 let gameOver = false;
 let started = false;
-
-// ---- MUSIC SYNC SYSTEM ----
-let audioCtx = null;
-let bpm = 120;
-let beatTime = 60000 / bpm;
-let lastBeat = 0;
-
-function playBeat(){
-  if(!audioCtx) return;
-
-  let osc = audioCtx.createOscillator();
-  let gain = audioCtx.createGain();
-
-  osc.type = 'square';
-  osc.frequency.value = 200;
-  gain.gain.value = 0.15;
-
-  osc.connect(gain);
-  gain.connect(audioCtx.destination);
-
-  osc.start();
-  osc.stop(audioCtx.currentTime + 0.08);
-}
-
-function startGame(){
-  if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  started = true;
-  lastBeat = performance.now();
-}
 
 class Player {
   constructor(){
@@ -101,11 +77,8 @@ class Player {
   }
 
   jump(){
-    if(this.onGround && !gameOver && started){
+    if(this.onGround && started && !gameOver){
       this.velY = jumpForce;
-
-      // play sound exactly on jump (sync feel)
-      playBeat();
     }
   }
 }
@@ -114,7 +87,7 @@ class Obstacle {
   constructor(x){
     this.x = x;
     this.width = 40;
-    this.height = 40 + Math.random()*40;
+    this.height = 60;
     this.y = canvas.height - 100 - this.height;
   }
 
@@ -140,10 +113,22 @@ function init(){
   score = 0;
   gameOver = false;
   started = false;
+
+  music.pause();
+  music.currentTime = 0;
+}
+
+function startGame(){
+  if(started) return;
+  started = true;
+
+  music.currentTime = 0;
+  music.play();
 }
 
 function spawnObstacle(){
-  if(frame % 90 === 0){
+  // consistent spacing for rhythm feel
+  if(frame % 100 === 0){
     obstacles.push(new Obstacle(canvas.width));
   }
 }
@@ -178,8 +163,8 @@ function update(){
     if(detectCollision(player,o)){
       gameOver = true;
 
-      // reset music timing
-      lastBeat = 0;
+      // HARD STOP MUSIC
+      music.pause();
     }
 
     if(o.x + o.width < 0){
@@ -209,19 +194,9 @@ function draw(){
   }
 }
 
-function musicLoop(time){
-  if(started && audioCtx){
-    if(time - lastBeat >= beatTime){
-      playBeat();
-      lastBeat = time;
-    }
-  }
-}
-
-function loop(time){
+function loop(){
   update();
   draw();
-  musicLoop(time);
   requestAnimationFrame(loop);
 }
 
@@ -234,17 +209,10 @@ window.addEventListener('keydown', e=>{
 
 window.addEventListener('mousedown', ()=> player.jump());
 
-// start button
-const startBtn = document.getElementById('startBtn');
-startBtn.addEventListener('click', ()=>{
-  startGame();
-});
+// buttons
 
-// restart
-const restartBtn = document.getElementById('restartBtn');
-restartBtn.addEventListener('click', ()=>{
-  init();
-});
+document.getElementById('startBtn').addEventListener('click', startGame);
+document.getElementById('restartBtn').addEventListener('click', init);
 
 init();
 loop();
