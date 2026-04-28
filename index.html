@@ -1,15 +1,13 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GD Clone (Custom Music)</title>
+<title>GD Clone (Better Music)</title>
 <style>
 body { margin:0; overflow:hidden; background:#111; }
 canvas { display:block; }
 #ui { position:absolute; top:10px; left:10px; }
-button { padding:8px 12px; margin-right:5px; background:#333; border:none; color:white; cursor:pointer; }
-button:hover { background:#555; }
+button { padding:8px 12px; margin-right:5px; background:#333; color:white; border:none; }
 </style>
 </head>
 <body>
@@ -24,38 +22,41 @@ button:hover { background:#555; }
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-function resize(){ canvas.width = innerWidth; canvas.height = innerHeight; }
+function resize(){ canvas.width=innerWidth; canvas.height=innerHeight; }
 addEventListener("resize", resize); resize();
 
 let gravity=0.6, jumpForce=-12, speed=6;
-let score=0, gameOver=false, started=false;
+let gameOver=false, started=false;
 
-// 🎵 BETTER MUSIC SYSTEM
+// 🎵 ADVANCED MUSIC ENGINE
 let audioCtx, musicOn=true, musicStarted=false;
 
-function playTone(freq, time, duration, type="sawtooth"){
-  let osc = audioCtx.createOscillator();
-  let gain = audioCtx.createGain();
+function osc(type,freq,time,dur,vol=0.1){
+  let o=audioCtx.createOscillator();
+  let g=audioCtx.createGain();
+  o.type=type;
+  o.frequency.setValueAtTime(freq,time);
 
-  osc.type = type;
-  osc.frequency.setValueAtTime(freq, time);
+  g.gain.setValueAtTime(0.0001,time);
+  g.gain.exponentialRampToValueAtTime(vol,time+0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001,time+dur);
 
-  gain.gain.setValueAtTime(0.0001, time);
-  gain.gain.exponentialRampToValueAtTime(0.15, time+0.01);
-  gain.gain.exponentialRampToValueAtTime(0.0001, time+duration);
-
-  osc.connect(gain);
-  gain.connect(audioCtx.destination);
-
-  osc.start(time);
-  osc.stop(time+duration);
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start(time); o.stop(time+dur);
 }
 
-// Melody pattern (GD-style)
+// chords (C minor vibe)
+const chords = [
+  [261.6,311.1,392.0], // Cm
+  [233.1,293.7,349.2], // Bb
+  [207.7,261.6,311.1], // Ab
+  [233.1,293.7,349.2]  // Bb
+];
+
+// melody notes
 const melody = [
-  440, 660, 550, 660,
-  880, 660, 550, 440,
-  660, 880, 990, 880
+  523,587,659,587,523,494,523,
+  659,698,784,698,659,587
 ];
 
 function startMusic(){
@@ -63,51 +64,89 @@ function startMusic(){
   audioCtx = new (window.AudioContext||window.webkitAudioContext)();
   musicStarted=true;
 
-  let tempo=140;
+  let tempo=130;
   let beat=60/tempo;
   let t=audioCtx.currentTime;
 
   function loop(){
     if(!musicOn || gameOver) return;
 
-    melody.forEach((note,i)=>{
-      playTone(note, t + i*beat, 0.2);
-
-      // bass
-      if(i%2===0){
-        playTone(note/2, t + i*beat, 0.3, "square");
-      }
+    // chords
+    chords.forEach((chord,i)=>{
+      chord.forEach(n=>{
+        osc("sawtooth",n,t+i*4*beat,3*beat,0.05);
+      });
     });
 
-    t += melody.length * beat;
-    setTimeout(loop, melody.length*beat*1000);
+    // melody
+    melody.forEach((n,i)=>{
+      osc("triangle",n,t+i*beat*0.8,0.3,0.12);
+    });
+
+    // drums
+    for(let i=0;i<16;i++){
+      let time = t + i*beat;
+
+      // kick
+      if(i%4===0){
+        let o=audioCtx.createOscillator();
+        let g=audioCtx.createGain();
+        o.frequency.setValueAtTime(120,time);
+        o.frequency.exponentialRampToValueAtTime(40,time+0.1);
+        g.gain.setValueAtTime(0.3,time);
+        g.gain.exponentialRampToValueAtTime(0.0001,time+0.2);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(time); o.stop(time+0.2);
+      }
+
+      // snare
+      if(i%4===2){
+        let noise = audioCtx.createBufferSource();
+        let buffer = audioCtx.createBuffer(1,44100,44100);
+        let data = buffer.getChannelData(0);
+        for(let j=0;j<44100;j++){ data[j]=Math.random()*2-1; }
+        noise.buffer = buffer;
+
+        let g = audioCtx.createGain();
+        g.gain.setValueAtTime(0.2,time);
+        g.gain.exponentialRampToValueAtTime(0.0001,time+0.2);
+
+        noise.connect(g);
+        g.connect(audioCtx.destination);
+        noise.start(time);
+      }
+    }
+
+    t += 16*beat;
+    setTimeout(loop, 16*beat*1000);
   }
 
   loop();
 }
 
-function stopMusic(){ musicStarted=false; }
-
-// PLAYER
+// 🎮 GAME (same as before but clean)
 class Player{
-  constructor(){ this.x=150; this.y=canvas.height-150; this.size=40; this.velY=0; this.onGround=false; this.rot=0; }
+  constructor(){ this.x=150; this.y=canvas.height-150; this.s=40; this.vy=0; this.g=false; this.r=0;}
   update(){
-    this.velY+=gravity; this.y+=this.velY;
-    if(this.y+this.size>=canvas.height-100){
-      this.y=canvas.height-100-this.size;
-      this.velY=0; this.onGround=true; this.rot=0;
-    } else { this.onGround=false; this.rot+=0.1; }
+    this.vy+=gravity; this.y+=this.vy;
+    if(this.y+this.s>=canvas.height-100){
+      this.y=canvas.height-100-this.s;
+      this.vy=0; this.g=true; this.r=0;
+    } else { this.g=false; this.r+=0.1; }
   }
   draw(){
-    ctx.save(); ctx.translate(this.x+20,this.y+20); ctx.rotate(this.rot);
-    ctx.fillStyle="#0ff"; ctx.fillRect(-20,-20,40,40);
+    ctx.save();
+    ctx.translate(this.x+20,this.y+20);
+    ctx.rotate(this.r);
+    ctx.fillStyle="#0ff";
+    ctx.fillRect(-20,-20,40,40);
     ctx.restore();
   }
-  jump(){ if(this.onGround && started && !gameOver) this.velY=jumpForce; }
+  jump(){ if(this.g && started && !gameOver) this.vy=jumpForce; }
 }
 
 class Obstacle{
-  constructor(x){ this.x=x; this.w=40; this.h=60; this.y=canvas.height-100-this.h; }
+  constructor(x){ this.x=x; this.w=40; this.h=60; this.y=canvas.height-100-this.h;}
   update(){ this.x-=speed; }
   draw(){
     ctx.fillStyle="#f00";
@@ -119,35 +158,35 @@ class Obstacle{
   }
 }
 
-let player, obstacles, frame;
+let player,obs,frame;
 
 function init(){
-  player=new Player(); obstacles=[]; frame=0; score=0;
+  player=new Player(); obs=[]; frame=0;
   gameOver=false; started=false;
-}
-
-function spawn(){ if(frame%100===0) obstacles.push(new Obstacle(canvas.width)); }
-
-function collide(p,o){
-  return p.x<o.x+o.w && p.x+40>o.x && p.y<o.y+o.h && p.y+40>o.y;
 }
 
 function update(){
   if(!started||gameOver) return;
-  frame++; score++;
-  player.update(); spawn();
+  frame++; player.update();
 
-  for(let i=obstacles.length-1;i>=0;i--){
-    let o=obstacles[i]; o.update();
-    if(collide(player,o)){ gameOver=true; }
-    if(o.x+o.w<0) obstacles.splice(i,1);
+  if(frame%100===0) obs.push(new Obstacle(canvas.width));
+
+  for(let i=obs.length-1;i>=0;i--){
+    let o=obs[i]; o.update();
+    if(player.x<o.x+o.w && player.x+40>o.x && player.y<o.y+o.h && player.y+40>o.y){
+      gameOver=true;
+    }
+    if(o.x+o.w<0) obs.splice(i,1);
   }
 }
 
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.fillStyle="#222"; ctx.fillRect(0,canvas.height-100,canvas.width,100);
-  player.draw(); obstacles.forEach(o=>o.draw());
+  ctx.fillStyle="#222";
+  ctx.fillRect(0,canvas.height-100,canvas.width,100);
+
+  player.draw();
+  obs.forEach(o=>o.draw());
 
   if(!started){
     ctx.fillStyle="white";
@@ -164,6 +203,7 @@ function draw(){
 
 function loop(){ update(); draw(); requestAnimationFrame(loop); }
 
+// controls
 function startAll(){
   if(!started){
     started=true;
@@ -172,7 +212,9 @@ function startAll(){
 }
 
 addEventListener("mousedown",()=>{ startAll(); player.jump(); });
-addEventListener("keydown",e=>{ if(e.code==="Space"){ e.preventDefault(); startAll(); player.jump(); }});
+addEventListener("keydown",e=>{
+  if(e.code==="Space"){ e.preventDefault(); startAll(); player.jump(); }
+});
 
 // UI
 restartBtn.onclick=()=>init();
