@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>GD Clone (Full Song)</title>
+<title>GD Clone (Fixed Music)</title>
 <style>
 body { margin:0; overflow:hidden; background:#111; }
 canvas { display:block; }
@@ -27,8 +27,7 @@ addEventListener("resize", resize); resize();
 let gravity=0.6, jumpForce=-12, speed=6;
 let gameOver=false, started=false;
 
-// 🎵 FULL MUSIC ENGINE
-let audioCtx, musicOn=true, startedMusic=false;
+let audioCtx, musicOn=true, musicStarted=false, loopTimer=null;
 
 function osc(type,freq,time,dur,vol=0.1){
   let o=audioCtx.createOscillator();
@@ -37,7 +36,6 @@ function osc(type,freq,time,dur,vol=0.1){
   o.type=type;
   o.frequency.setValueAtTime(freq,time);
 
-  // smooth envelope
   g.gain.setValueAtTime(0.0001,time);
   g.gain.linearRampToValueAtTime(vol,time+0.02);
   g.gain.exponentialRampToValueAtTime(0.0001,time+dur);
@@ -46,121 +44,99 @@ function osc(type,freq,time,dur,vol=0.1){
   o.start(time); o.stop(time+dur);
 }
 
-// chords (minor EDM feel)
 const prog = [
-  [261.6,311.1,392.0], // Cm
-  [207.7,261.6,311.1], // Ab
-  [233.1,293.7,349.2], // Bb
-  [261.6,311.1,392.0]  // Cm
+  [261.6,311.1,392.0],
+  [207.7,261.6,311.1],
+  [233.1,293.7,349.2],
+  [261.6,311.1,392.0]
 ];
 
-// lead melody (more variation)
 const lead = [
   523,587,659,698,659,587,523,
-  659,784,880,784,659,587,
-  523,659,784,880,988,880,784
+  659,784,880,784,659,587
 ];
 
 function startMusic(){
-  if(startedMusic) return;
+  if(musicStarted) return;
   audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-  startedMusic=true;
+  musicStarted=true;
 
   let tempo=140;
   let beat=60/tempo;
   let t=audioCtx.currentTime;
-  let section=0;
 
   function loop(){
-    if(!musicOn || gameOver) return;
-
-    // INTRO
-    if(section===0){
-      prog.forEach((chord,i)=>{
-        chord.forEach(n=>{
-          osc("sine",n,t+i*4*beat,4*beat,0.03);
-        });
-      });
+    if(!musicOn || gameOver){
+      stopMusic();
+      return;
     }
 
-    // BUILD
-    if(section===1){
-      prog.forEach((chord,i)=>{
-        chord.forEach(n=>{
-          osc("triangle",n,t+i*4*beat,4*beat,0.05);
-        });
+    prog.forEach((chord,i)=>{
+      chord.forEach(n=>{
+        osc("sawtooth",n,t+i*4*beat,4*beat,0.06);
       });
-      lead.forEach((n,i)=>{
-        osc("square",n,t+i*beat*0.5,0.2,0.07);
-      });
-    }
+    });
 
-    // DROP
-    if(section>=2){
-      prog.forEach((chord,i)=>{
-        chord.forEach(n=>{
-          osc("sawtooth",n,t+i*4*beat,4*beat,0.07);
-        });
-      });
+    prog.forEach((chord,i)=>{
+      osc("square",chord[0]/2,t+i*4*beat,4*beat,0.1);
+    });
 
-      // bass
-      prog.forEach((chord,i)=>{
-        osc("square",chord[0]/2,t+i*4*beat,4*beat,0.12);
-      });
+    lead.forEach((n,i)=>{
+      osc("triangle",n,t+i*beat*0.5,0.2,0.1);
+    });
 
-      // lead
-      lead.forEach((n,i)=>{
-        osc("triangle",n,t+i*beat*0.4,0.15,0.12);
-      });
+    for(let i=0;i<32;i++){
+      let time=t+i*beat;
 
-      // drums
-      for(let i=0;i<32;i++){
-        let time=t+i*beat;
+      if(i%4===0){
+        let o=audioCtx.createOscillator();
+        let g=audioCtx.createGain();
+        o.frequency.setValueAtTime(120,time);
+        o.frequency.exponentialRampToValueAtTime(40,time+0.1);
+        g.gain.setValueAtTime(0.4,time);
+        g.gain.exponentialRampToValueAtTime(0.0001,time+0.2);
+        o.connect(g); g.connect(audioCtx.destination);
+        o.start(time); o.stop(time+0.2);
+      }
 
-        // kick
-        if(i%4===0){
-          let o=audioCtx.createOscillator();
-          let g=audioCtx.createGain();
-          o.frequency.setValueAtTime(120,time);
-          o.frequency.exponentialRampToValueAtTime(40,time+0.1);
-          g.gain.setValueAtTime(0.4,time);
-          g.gain.exponentialRampToValueAtTime(0.0001,time+0.2);
-          o.connect(g); g.connect(audioCtx.destination);
-          o.start(time); o.stop(time+0.2);
-        }
+      if(i%4===2){
+        let buffer = audioCtx.createBuffer(1,44100,44100);
+        let data = buffer.getChannelData(0);
+        for(let j=0;j<44100;j++){ data[j]=Math.random()*2-1; }
 
-        // snare
-        if(i%4===2){
-          let buffer = audioCtx.createBuffer(1,44100,44100);
-          let data = buffer.getChannelData(0);
-          for(let j=0;j<44100;j++){ data[j]=Math.random()*2-1; }
+        let noise = audioCtx.createBufferSource();
+        noise.buffer = buffer;
 
-          let noise = audioCtx.createBufferSource();
-          noise.buffer = buffer;
+        let g = audioCtx.createGain();
+        g.gain.setValueAtTime(0.2,time);
+        g.gain.exponentialRampToValueAtTime(0.0001,time+0.2);
 
-          let g = audioCtx.createGain();
-          g.gain.setValueAtTime(0.2,time);
-          g.gain.exponentialRampToValueAtTime(0.0001,time+0.2);
-
-          noise.connect(g);
-          g.connect(audioCtx.destination);
-          noise.start(time);
-        }
+        noise.connect(g);
+        g.connect(audioCtx.destination);
+        noise.start(time);
       }
     }
 
-    // advance sections
-    section++;
-    if(section>3) section=2; // stay in drop loop
-
     t += 16*beat;
-    setTimeout(loop,16*beat*1000);
+    loopTimer = setTimeout(loop,16*beat*1000);
   }
 
   loop();
 }
 
-// 🎮 GAME (same)
+function stopMusic(){
+  musicStarted=false;
+  if(loopTimer){
+    clearTimeout(loopTimer);
+    loopTimer=null;
+  }
+  if(audioCtx){
+    audioCtx.close();
+    audioCtx=null;
+  }
+}
+
+// GAME
 class Player{
   constructor(){ this.x=150; this.y=canvas.height-150; this.s=40; this.vy=0; this.g=false; this.r=0;}
   update(){
@@ -171,11 +147,8 @@ class Player{
     } else { this.g=false; this.r+=0.1; }
   }
   draw(){
-    ctx.save();
-    ctx.translate(this.x+20,this.y+20);
-    ctx.rotate(this.r);
-    ctx.fillStyle="#0ff";
-    ctx.fillRect(-20,-20,40,40);
+    ctx.save(); ctx.translate(this.x+20,this.y+20); ctx.rotate(this.r);
+    ctx.fillStyle="#0ff"; ctx.fillRect(-20,-20,40,40);
     ctx.restore();
   }
   jump(){ if(this.g && started && !gameOver) this.vy=jumpForce; }
@@ -199,6 +172,7 @@ let player,obs,frame;
 function init(){
   player=new Player(); obs=[]; frame=0;
   gameOver=false; started=false;
+  stopMusic();
 }
 
 function update(){
@@ -211,6 +185,7 @@ function update(){
     let o=obs[i]; o.update();
     if(player.x<o.x+o.w && player.x+40>o.x && player.y<o.y+o.h && player.y+40>o.y){
       gameOver=true;
+      stopMusic();
     }
     if(o.x+o.w<0) obs.splice(i,1);
   }
@@ -251,11 +226,17 @@ addEventListener("keydown",e=>{
   if(e.code==="Space"){ e.preventDefault(); startAll(); player.jump(); }
 });
 
-// UI
 restartBtn.onclick=()=>init();
+
 musicBtn.onclick=function(){
   musicOn=!musicOn;
   this.innerText="Music: "+(musicOn?"ON":"OFF");
+
+  if(!musicOn){
+    stopMusic();
+  } else if(started && !gameOver){
+    startMusic();
+  }
 };
 
 init(); loop();
