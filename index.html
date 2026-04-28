@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Geometry Dash Clone (Working Music + Clean UI)</title>
+<title>Geometry Dash Clone (Clean Start + Music)</title>
 <style>
 body { margin:0; overflow:hidden; background:#111; font-family:Arial; }
 canvas { display:block; }
@@ -19,7 +19,6 @@ button:hover { background:#555; }
   <button id="musicBtn">Music: ON</button>
 </div>
 
-<!-- RELIABLE MUSIC SOURCE -->
 <audio id="music" loop>
   <source src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_c8c8a73467.mp3?filename=8-bit-arcade-110623.mp3" type="audio/mpeg">
 </audio>
@@ -42,7 +41,8 @@ let speed = 6;
 let score = 0;
 let gameOver = false;
 let musicOn = true;
-let startedAudio = false;
+let audioUnlocked = false;
+let gameStarted = false;
 
 class Player {
   constructor(){
@@ -79,7 +79,7 @@ class Player {
   }
 
   jump(){
-    if(this.onGround && !gameOver){
+    if(this.onGround && !gameOver && gameStarted){
       this.velY = jumpForce;
     }
   }
@@ -114,10 +114,22 @@ function init(){
   frame = 0;
   score = 0;
   gameOver = false;
+  gameStarted = false;
 
-  // reset music
   music.pause();
   music.currentTime = 0;
+}
+
+function unlockAndStart(){
+  if(!audioUnlocked){
+    audioUnlocked = true;
+    gameStarted = true;
+
+    if(musicOn){
+      music.currentTime = 0;
+      music.play().catch(()=>{});
+    }
+  }
 }
 
 function spawnObstacle(){
@@ -136,7 +148,7 @@ function detectCollision(p,o){
 }
 
 function update(){
-  if(gameOver) return;
+  if(!gameStarted || gameOver) return;
 
   frame++;
   score++;
@@ -162,12 +174,17 @@ function update(){
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
 
-  // ground
   ctx.fillStyle = '#222';
   ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
 
   player.draw();
   obstacles.forEach(o=>o.draw());
+
+  if(!gameStarted){
+    ctx.fillStyle='white';
+    ctx.font='40px Arial';
+    ctx.fillText('CLICK TO START', canvas.width/2 - 170, canvas.height/2);
+  }
 
   if(gameOver){
     ctx.fillStyle='white';
@@ -182,28 +199,20 @@ function loop(){
   requestAnimationFrame(loop);
 }
 
-// start music on first interaction (browser rule)
-function startAudio(){
-  if(!startedAudio){
-    music.play().catch(()=>{});
-    startedAudio = true;
-  }
-}
+window.addEventListener('mousedown', ()=>{
+  unlockAndStart();
+  player.jump();
+});
 
 window.addEventListener('keydown', e=>{
   if(e.code === 'Space'){
     e.preventDefault();
-    startAudio();
+    unlockAndStart();
     player.jump();
   }
 });
 
-window.addEventListener('mousedown', ()=>{
-  startAudio();
-  player.jump();
-});
-
-// UI buttons
+// buttons
 
 document.getElementById('restartBtn').addEventListener('click', ()=>{
   init();
@@ -213,13 +222,13 @@ const musicBtn = document.getElementById('musicBtn');
 musicBtn.addEventListener('click', ()=>{
   musicOn = !musicOn;
 
-  if(musicOn){
+  if(musicOn && gameStarted && !gameOver){
     music.play().catch(()=>{});
-    musicBtn.innerText = 'Music: ON';
   } else {
     music.pause();
-    musicBtn.innerText = 'Music: OFF';
   }
+
+  musicBtn.innerText = 'Music: ' + (musicOn ? 'ON' : 'OFF');
 });
 
 init();
