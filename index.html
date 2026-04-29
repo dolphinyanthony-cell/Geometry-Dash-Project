@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>GD Clone (Level End Added)</title>
+<title>GD Clone (Controlled Random Jumps)</title>
 <style>
 body { margin:0; overflow:hidden; background:#111; }
 canvas { display:block; }
@@ -32,29 +32,25 @@ resize();
 
 
 // =====================
-// GAME SETTINGS
+// ⚖️ BALANCED PHYSICS
 // =====================
 let gravity = 0.5;
-let jumpForce = -12.2;
+let jumpForce = -12;
 let speed = 4.4;
 
 let gameOver = false;
 let started = false;
-let levelComplete = false;
 
 
 // =====================
-// SCORE + END CONDITION
+// SCORE
 // =====================
 let score = 0;
 let scoreTick = 0;
 
-// 🎯 RANDOM LEVEL END BETWEEN 600–1000
-let levelEnd = Math.floor(600 + Math.random() * 400);
-
 
 // =====================
-// MUSIC (simple safe version)
+// MUSIC (minimal safe)
 // =====================
 let audioCtx;
 let musicOn = true;
@@ -114,7 +110,7 @@ function startMusic(){
   lastUpdateTime = performance.now();
 
   loopInterval = setInterval(()=>{
-    if(!musicOn || gameOver || levelComplete) return;
+    if(!musicOn || gameOver) return;
 
     let now = performance.now();
     songTime += (now - lastUpdateTime) / 1000;
@@ -129,7 +125,7 @@ function startMusic(){
       playNote(330, 0.2);
     }
 
-    playNote(520 + (step % 3) * 20, 0.1, "triangle", 0.07);
+    playNote(520 + (step % 4) * 18, 0.1, "triangle", 0.07);
 
   }, 100);
 }
@@ -179,7 +175,7 @@ class Player{
   }
 
   jump(){
-    if(this.g && started && !gameOver && !levelComplete){
+    if(this.g && started && !gameOver){
       this.vy = jumpForce;
     }
   }
@@ -251,12 +247,22 @@ function pointInTriangle(px, py, ax, ay, bx, by, cx, cy){
 
 
 // =====================
-// GAME STATE
+// 🎯 CONTROLLED RANDOM SPAWNING (KEY PART)
 // =====================
 let player, spikes;
 
 let spawnTimer = 0;
-let spawnGap = 85;
+
+// base spacing + safe randomness
+let baseGap = 85;
+
+function getSafeGap(){
+  // small variation BUT ALWAYS SAFE
+  let offset = (Math.random() * 20) - 10; // -10 to +10
+  return Math.max(75, Math.min(95, baseGap + offset));
+}
+
+let currentGap = getSafeGap();
 
 function init(){
   player = new Player();
@@ -264,15 +270,12 @@ function init(){
 
   gameOver = false;
   started = false;
-  levelComplete = false;
 
   score = 0;
   scoreTick = 0;
 
   spawnTimer = 0;
-
-  // NEW END EACH RUN
-  levelEnd = Math.floor(600 + Math.random() * 400);
+  currentGap = getSafeGap();
 
   stopMusic();
   songTime = 0;
@@ -295,7 +298,7 @@ function startAll(){
 // LOOP
 // =====================
 function update(){
-  if(!started || gameOver || levelComplete) return;
+  if(!started || gameOver) return;
 
   player.update();
 
@@ -305,19 +308,12 @@ function update(){
     scoreTick = 0;
   }
 
-  // =====================
-  // 🏁 LEVEL END CHECK
-  // =====================
-  if(score >= levelEnd){
-    levelComplete = true;
-    stopMusic();
-    return;
-  }
-
   spawnTimer++;
-  if(spawnTimer >= spawnGap){
+
+  if(spawnTimer >= currentGap){
     spikes.push(new Spike(canvas.width));
     spawnTimer = 0;
+    currentGap = getSafeGap(); // new random safe spacing each spike
   }
 
   for(let i = spikes.length - 1; i >= 0; i--){
@@ -344,7 +340,6 @@ function draw(){
   player.draw();
   spikes.forEach(s=>s.draw());
 
-  // SCORE
   ctx.fillStyle = "white";
   ctx.font = "bold 42px Arial";
   ctx.textAlign = "right";
@@ -357,15 +352,6 @@ function draw(){
 
   if(gameOver){
     ctx.fillText("GAME OVER", canvas.width/2 - 120, canvas.height/2);
-  }
-
-  if(levelComplete){
-    ctx.fillStyle = "#00ff99";
-    ctx.font = "bold 60px Arial";
-    ctx.textAlign = "center";
-    ctx.fillText("LEVEL COMPLETE!", canvas.width/2, canvas.height/2);
-    ctx.font = "30px Arial";
-    ctx.fillText("Score: " + score, canvas.width/2, canvas.height/2 + 50);
   }
 }
 
