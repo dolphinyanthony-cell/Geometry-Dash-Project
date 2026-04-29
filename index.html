@@ -378,4 +378,10 @@ loop();
 </script>
 
 </body>
-</html>
+</html>window.addEventListener("keydown", function(e){
+  if(e.code === "Space"){
+    e.preventDefault();
+    startAll();
+    player.jump();
+  }
+});
