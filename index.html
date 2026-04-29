@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>GD Clone (Harder + Clean UI)</title>
+<title>GD Clone (Level End Added)</title>
 <style>
 body { margin:0; overflow:hidden; background:#111; }
 canvas { display:block; }
@@ -32,25 +32,29 @@ resize();
 
 
 // =====================
-// ⚡ HARDER (but fair)
+// GAME SETTINGS
 // =====================
 let gravity = 0.5;
 let jumpForce = -12.2;
-let speed = 4.6;
+let speed = 4.4;
 
 let gameOver = false;
 let started = false;
+let levelComplete = false;
 
 
 // =====================
-// SCORE
+// SCORE + END CONDITION
 // =====================
 let score = 0;
 let scoreTick = 0;
 
+// 🎯 RANDOM LEVEL END BETWEEN 600–1000
+let levelEnd = Math.floor(600 + Math.random() * 400);
+
 
 // =====================
-// MUSIC (unchanged minimal working)
+// MUSIC (simple safe version)
 // =====================
 let audioCtx;
 let musicOn = true;
@@ -110,22 +114,22 @@ function startMusic(){
   lastUpdateTime = performance.now();
 
   loopInterval = setInterval(()=>{
-    if(!musicOn || gameOver) return;
+    if(!musicOn || gameOver || levelComplete) return;
 
     let now = performance.now();
     songTime += (now - lastUpdateTime) / 1000;
     lastUpdateTime = now;
 
-    let tempo = 135;
+    let tempo = 132;
     let beat = 60 / tempo;
     let step = Math.floor(songTime / beat) % 16;
 
     if(step % 4 === 0){
-      playNote(220, 0.22);
-      playNote(330, 0.22);
+      playNote(220, 0.2);
+      playNote(330, 0.2);
     }
 
-    playNote(520 + (step % 4) * 18, 0.09, "triangle", 0.07);
+    playNote(520 + (step % 3) * 20, 0.1, "triangle", 0.07);
 
   }, 100);
 }
@@ -175,7 +179,7 @@ class Player{
   }
 
   jump(){
-    if(this.g && started && !gameOver){
+    if(this.g && started && !gameOver && !levelComplete){
       this.vy = jumpForce;
     }
   }
@@ -252,7 +256,7 @@ function pointInTriangle(px, py, ax, ay, bx, by, cx, cy){
 let player, spikes;
 
 let spawnTimer = 0;
-let spawnGap = 85; // 🔥 HARDER (was 95–95+ before)
+let spawnGap = 85;
 
 function init(){
   player = new Player();
@@ -260,11 +264,15 @@ function init(){
 
   gameOver = false;
   started = false;
+  levelComplete = false;
 
   score = 0;
   scoreTick = 0;
 
   spawnTimer = 0;
+
+  // NEW END EACH RUN
+  levelEnd = Math.floor(600 + Math.random() * 400);
 
   stopMusic();
   songTime = 0;
@@ -273,9 +281,11 @@ function init(){
 function startAll(){
   if(!started){
     started = true;
+
     if(!audioCtx){
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     }
+
     if(musicOn) startMusic();
   }
 }
@@ -285,7 +295,7 @@ function startAll(){
 // LOOP
 // =====================
 function update(){
-  if(!started || gameOver) return;
+  if(!started || gameOver || levelComplete) return;
 
   player.update();
 
@@ -293,6 +303,15 @@ function update(){
   if(scoreTick >= 5){
     score++;
     scoreTick = 0;
+  }
+
+  // =====================
+  // 🏁 LEVEL END CHECK
+  // =====================
+  if(score >= levelEnd){
+    levelComplete = true;
+    stopMusic();
+    return;
   }
 
   spawnTimer++;
@@ -325,13 +344,11 @@ function draw(){
   player.draw();
   spikes.forEach(s=>s.draw());
 
-  // =====================
-  // 📊 BIG SCORE (RIGHT SIDE)
-  // =====================
+  // SCORE
   ctx.fillStyle = "white";
-  ctx.font = "bold 48px Arial";
+  ctx.font = "bold 42px Arial";
   ctx.textAlign = "right";
-  ctx.fillText("Score: " + score, canvas.width - 25, 65);
+  ctx.fillText("Score: " + score, canvas.width - 20, 60);
   ctx.textAlign = "left";
 
   if(!started){
@@ -340,6 +357,15 @@ function draw(){
 
   if(gameOver){
     ctx.fillText("GAME OVER", canvas.width/2 - 120, canvas.height/2);
+  }
+
+  if(levelComplete){
+    ctx.fillStyle = "#00ff99";
+    ctx.font = "bold 60px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("LEVEL COMPLETE!", canvas.width/2, canvas.height/2);
+    ctx.font = "30px Arial";
+    ctx.fillText("Score: " + score, canvas.width/2, canvas.height/2 + 50);
   }
 }
 
