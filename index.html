@@ -55,7 +55,37 @@ function drawDiamond(x,y,size){
   ctx.fill();
 }
 
-function drawBackground(){
+functionfunction drawBackground(){
+  // simple deep GD-style gradient (safe, no layout interference)
+  let grad = ctx.createLinearGradient(0,0,0,canvas.height);
+  grad.addColorStop(0, "#020617");
+  grad.addColorStop(1, "#000000");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // subtle moving glow bands (does NOT affect gameplay)
+  let t = performance.now() * 0.001;
+
+  for(let i = 0; i < 5; i++){
+    let y = (canvas.height * 0.2 * i) + Math.sin(t + i) * 10;
+
+    ctx.fillStyle = "rgba(0,255,255,0.03)";
+    ctx.fillRect(0, y, canvas.width, 40);
+  }
+
+  // ground glow line (kept clean)
+  ctx.strokeStyle = "rgba(0,255,255,0.35)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, canvas.height - 100);
+  ctx.lineTo(canvas.width, canvas.height - 100);
+  ctx.stroke();
+
+  // faint pulse (pure visual only)
+  let pulse = Math.sin(performance.now() * 0.003) * 0.5 + 0.5;
+  ctx.fillStyle = `rgba(0,255,255,${0.02 + pulse * 0.02})`;
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+}{
   bgOffset += speed * 0.4;
 
   // deep cold gradient
