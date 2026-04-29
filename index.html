@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>GD Clone (Fixed Music Resume)</title>
+<title>GD Clone (Score + Music Fixed)</title>
 <style>
 body { margin:0; overflow:hidden; background:#111; }
 canvas { display:block; }
@@ -27,14 +27,18 @@ addEventListener("resize", resize); resize();
 let gravity=0.6, jumpForce=-12, speed=6;
 let gameOver=false, started=false;
 
+// ===== SCORE =====
+let score = 0;
+let scoreTick = 0; // slows score gain
+
 // ===== MUSIC SYSTEM =====
 let audioCtx;
 let musicOn = true;
 let musicRunning = false;
 let loopInterval = null;
 
-let songTime = 0;        // where the song SHOULD be
-let lastUpdateTime = 0;  // real time tracker
+let songTime = 0;
+let lastUpdateTime = 0;
 
 function playNote(freq, dur, type="sawtooth", vol=0.1){
   let o = audioCtx.createOscillator();
@@ -52,7 +56,6 @@ function playNote(freq, dur, type="sawtooth", vol=0.1){
   o.stop(audioCtx.currentTime + dur);
 }
 
-// chord progression
 const chords = [
   [261.6,311.1,392.0],
   [207.7,261.6,311.1],
@@ -60,7 +63,6 @@ const chords = [
   [261.6,311.1,392.0]
 ];
 
-// melody
 const melody = [523,587,659,698,659,587,523,659,784,880,784,659];
 
 function startMusic(){
@@ -76,34 +78,27 @@ function startMusic(){
   loopInterval = setInterval(()=>{
     if(!musicOn || gameOver) return;
 
-    // advance song timeline EVEN IF paused before
     let now = performance.now();
     songTime += (now - lastUpdateTime) / 1000;
     lastUpdateTime = now;
 
     let tempo = 140;
     let beat = 60/tempo;
-
-    // use songTime to determine position
     let step = Math.floor(songTime / beat) % 16;
 
-    // chords every 4 beats
     if(step % 4 === 0){
       let chord = chords[Math.floor(step/4)%chords.length];
       chord.forEach(n => playNote(n, 0.4, "sawtooth", 0.06));
       playNote(chord[0]/2, 0.4, "square", 0.1);
     }
 
-    // melody
     let note = melody[step % melody.length];
     playNote(note, 0.15, "triangle", 0.1);
 
-    // kick
     if(step % 4 === 0){
       playNote(100, 0.1, "sine", 0.3);
     }
 
-    // snare
     if(step % 4 === 2){
       let buffer = audioCtx.createBuffer(1,44100,44100);
       let data = buffer.getChannelData(0);
@@ -173,11 +168,20 @@ function init(){
   gameOver=false; started=false;
   stopMusic();
   songTime = 0;
+  score = 0;
+  scoreTick = 0;
 }
 
 function update(){
   if(!started||gameOver) return;
   frame++; player.update();
+
+  // slower score increase
+  scoreTick++;
+  if(scoreTick >= 5){ // adjust this number to control speed
+    score++;
+    scoreTick = 0;
+  }
 
   if(frame%100===0) obs.push(new Obstacle(canvas.width));
 
@@ -198,6 +202,11 @@ function draw(){
 
   player.draw();
   obs.forEach(o=>o.draw());
+
+  // SCORE DISPLAY
+  ctx.fillStyle = "white";
+  ctx.font = "30px Arial";
+  ctx.fillText("Score: " + score, 20, 50);
 
   if(!started){
     ctx.fillStyle="white";
@@ -226,7 +235,6 @@ addEventListener("keydown",e=>{
   if(e.code==="Space"){ e.preventDefault(); startAll(); player.jump(); }
 });
 
-// UI
 restartBtn.onclick=()=>init();
 
 musicBtn.onclick=function(){
