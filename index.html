@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>GD Clone (Clean HUD)</title>
+<title>GD Clone (Accurate Hitboxes)</title>
 <style>
 body { margin:0; overflow:hidden; background:#111; }
 canvas { display:block; }
@@ -139,6 +139,19 @@ function stopMusic(){
   }
 }
 
+// ===== TRIANGLE COLLISION =====
+function pointInTriangle(px, py, ax, ay, bx, by, cx, cy) {
+  const area = (x1,y1,x2,y2,x3,y3) =>
+    Math.abs((x1*(y2-y3)+x2*(y3-y1)+x3*(y1-y2))/2);
+
+  let A = area(ax,ay,bx,by,cx,cy);
+  let A1 = area(px,py,bx,by,cx,cy);
+  let A2 = area(ax,ay,px,py,cx,cy);
+  let A3 = area(ax,ay,bx,by,px,py);
+
+  return Math.abs(A - (A1 + A2 + A3)) < 0.5;
+}
+
 // ===== GAME =====
 class Player{
   constructor(){
@@ -197,8 +210,8 @@ class Obstacle{
     ctx.fillStyle = "#f00";
     ctx.beginPath();
     ctx.moveTo(this.x, this.y + this.h);
-    ctx.lineTo(this.x + 20, this.y);
-    ctx.lineTo(this.x + 40, this.y + this.h);
+    ctx.lineTo(this.x + this.w/2, this.y);
+    ctx.lineTo(this.x + this.w, this.y + this.h);
     ctx.fill();
   }
 }
@@ -240,14 +253,29 @@ function update(){
     let o = obs[i];
     o.update();
 
-    if(
-      player.x < o.x + o.w &&
-      player.x + 40 > o.x &&
-      player.y < o.y + o.h &&
-      player.y + 40 > o.y
-    ){
-      gameOver = true;
-      stopMusic();
+    // triangle vertices
+    let ax = o.x;
+    let ay = o.y + o.h;
+
+    let bx = o.x + o.w / 2;
+    let by = o.y;
+
+    let cx = o.x + o.w;
+    let cy = o.y + o.h;
+
+    let corners = [
+      [player.x, player.y],
+      [player.x + 40, player.y],
+      [player.x, player.y + 40],
+      [player.x + 40, player.y + 40]
+    ];
+
+    for(let [px, py] of corners){
+      if(pointInTriangle(px, py, ax, ay, bx, by, cx, cy)){
+        gameOver = true;
+        stopMusic();
+        break;
+      }
     }
 
     if(o.x + o.w < 0){
@@ -265,15 +293,12 @@ function draw(){
   player.draw();
   obs.forEach(o => o.draw());
 
-  // ===== SCORE (TOP RIGHT) =====
+  // SCORE
   ctx.fillStyle = "white";
   ctx.font = "bold 30px Arial";
   ctx.textAlign = "right";
-  ctx.shadowColor = "black";
-  ctx.shadowBlur = 5;
   ctx.fillText("Score: " + score, canvas.width - 20, 50);
   ctx.textAlign = "left";
-  ctx.shadowBlur = 0;
 
   if(!started){
     ctx.fillStyle = "white";
