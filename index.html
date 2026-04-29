@@ -1,3 +1,58 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>GD Clone (Leaf Background Fix)</title>
+<style>
+body { margin:0; overflow:hidden; background:#111; }
+canvas { display:block; }
+#ui { position:absolute; top:10px; left:10px; }
+button { padding:8px 12px; margin-right:5px; background:#333; color:white; border:none; }
+</style>
+</head>
+<body>
+
+<canvas id="game"></canvas>
+
+<div id="ui">
+  <button id="restartBtn">Restart</button>
+  <button id="musicBtn">Music: ON</button>
+</div>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+
+function resize(){
+  canvas.width = innerWidth;
+  canvas.height = innerHeight;
+}
+addEventListener("resize", resize);
+resize();
+
+let gravity = 0.6;
+let jumpForce = -12;
+let speed = 6;
+
+let gameOver = false;
+let started = false;
+
+// SCORE
+let score = 0;
+let scoreTick = 0;
+
+// MUSIC
+let audioCtx;
+let musicOn = true;
+let musicRunning = false;
+let loopInterval = null;
+
+let songTime = 0;
+let lastUpdateTime = 0;
+
+// =====================
+// LEAF BACKGROUND FIX
+// =====================
 function drawBackground(){
   // dark base
   let grad = ctx.createLinearGradient(0,0,0,canvas.height);
@@ -6,9 +61,8 @@ function drawBackground(){
   ctx.fillStyle = grad;
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  // subtle leafy silhouette layer (no images, just shapes)
+  // subtle moving leaves
   ctx.fillStyle = "rgba(0,255,140,0.05)";
-
   let t = performance.now() * 0.0003;
 
   for(let i = 0; i < 25; i++){
@@ -18,14 +72,14 @@ function drawBackground(){
     drawLeaf(x, y, 30 + (i % 3) * 10);
   }
 
-  // black fade overlay for “menu vibe”
+  // black fade overlay (GD vibe)
   let fade = ctx.createLinearGradient(0,0,0,canvas.height);
   fade.addColorStop(0, "rgba(0,0,0,0.2)");
   fade.addColorStop(1, "rgba(0,0,0,0.85)");
   ctx.fillStyle = fade;
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  // ground glow line (GD style)
+  // ground glow line
   ctx.strokeStyle = "rgba(0,255,200,0.25)";
   ctx.lineWidth = 2;
   ctx.beginPath();
@@ -33,3 +87,92 @@ function drawBackground(){
   ctx.lineTo(canvas.width, canvas.height - 100);
   ctx.stroke();
 }
+
+function drawLeaf(x, y, size){
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.quadraticCurveTo(x + size/2, y - size, x + size, y);
+  ctx.quadraticCurveTo(x + size/2, y + size, x, y);
+  ctx.fill();
+}
+
+// =====================
+// MUSIC (UNCHANGED)
+// =====================
+function playNote(freq, dur, type="sawtooth", vol=0.1){
+  let o = audioCtx.createOscillator();
+  let g = audioCtx.createGain();
+
+  o.type = type;
+  o.frequency.value = freq;
+
+  g.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+  g.gain.linearRampToValueAtTime(vol, audioCtx.currentTime + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+
+  o.connect(g);
+  g.connect(audioCtx.destination);
+
+  o.start();
+  o.stop(audioCtx.currentTime + dur);
+}
+
+const chords = [
+  [261.6,311.1,392.0],
+  [207.7,261.6,311.1],
+  [233.1,293.7,349.2],
+  [261.6,311.1,392.0]
+];
+
+const melody = [523,587,659,698,659,587,523,659,784,880,784,659];
+
+function startMusic(){
+  if(musicRunning) return;
+
+  if(!audioCtx){
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+
+  musicRunning = true;
+  lastUpdateTime = performance.now();
+
+  loopInterval = setInterval(()=>{
+    if(!musicOn || gameOver) return;
+
+    let now = performance.now();
+    songTime += (now - lastUpdateTime) / 1000;
+    lastUpdateTime = now;
+
+    let tempo = 140;
+    let beat = 60 / tempo;
+    let step = Math.floor(songTime / beat) % 16;
+
+    if(step % 4 === 0){
+      let chord = chords[Math.floor(step/4)%chords.length];
+      chord.forEach(n => playNote(n, 0.4, "sawtooth", 0.06));
+    }
+
+    let note = melody[step % melody.length];
+    playNote(note, 0.15, "triangle", 0.1);
+
+  }, 100);
+}
+
+function stopMusic(){
+  musicRunning = false;
+  if(loopInterval){
+    clearInterval(loopInterval);
+    loopInterval = null;
+  }
+}
+
+// =====================
+// (REST OF YOUR GAME STAYS SAME)
+// =====================
+
+// ... (keep your player, obstacle, update, draw, input exactly as before)
+
+</script>
+
+</body>
+</html>
