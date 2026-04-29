@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>GD Clone (Fair / All Jumps Possible)</title>
+<title>GD Clone (Harder + Clean UI)</title>
 <style>
 body { margin:0; overflow:hidden; background:#111; }
 canvas { display:block; }
@@ -32,11 +32,11 @@ resize();
 
 
 // =====================
-// ⚖️ BALANCED PHYSICS (IMPORTANT)
+// ⚡ HARDER (but fair)
 // =====================
-let gravity = 0.48;
-let jumpForce = -11.8;
-let speed = 4.2; // slightly faster but controlled
+let gravity = 0.5;
+let jumpForce = -12.2;
+let speed = 4.6;
 
 let gameOver = false;
 let started = false;
@@ -50,7 +50,7 @@ let scoreTick = 0;
 
 
 // =====================
-// MUSIC (minimal safe version)
+// MUSIC (unchanged minimal working)
 // =====================
 let audioCtx;
 let musicOn = true;
@@ -116,18 +116,18 @@ function startMusic(){
     songTime += (now - lastUpdateTime) / 1000;
     lastUpdateTime = now;
 
-    let tempo = 128;
+    let tempo = 135;
     let beat = 60 / tempo;
     let step = Math.floor(songTime / beat) % 16;
 
     if(step % 4 === 0){
-      playNote(220, 0.25);
-      playNote(330, 0.25);
+      playNote(220, 0.22);
+      playNote(330, 0.22);
     }
 
-    playNote(520 + (step % 4) * 15, 0.1, "triangle", 0.07);
+    playNote(520 + (step % 4) * 18, 0.09, "triangle", 0.07);
 
-  }, 110);
+  }, 100);
 }
 
 function stopMusic(){
@@ -183,7 +183,7 @@ class Player{
 
 
 // =====================
-// SPIKES (FIXED + FAIR PLACEMENT)
+// SPIKE
 // =====================
 class Spike{
   constructor(x){
@@ -231,7 +231,7 @@ class Spike{
 
 
 // =====================
-// TRUE TRIANGLE CHECK
+// TRIANGLE HITBOX
 // =====================
 function pointInTriangle(px, py, ax, ay, bx, by, cx, cy){
   const area = (x1,y1,x2,y2,x3,y3)=>
@@ -251,9 +251,8 @@ function pointInTriangle(px, py, ax, ay, bx, by, cx, cy){
 // =====================
 let player, spikes;
 
-// 🔥 FIXED LEVEL DESIGN (NO IMPOSSIBLE JUMPS)
 let spawnTimer = 0;
-let spawnGap = 95; // guaranteed jumpable spacing
+let spawnGap = 85; // 🔥 HARDER (was 95–95+ before)
 
 function init(){
   player = new Player();
@@ -291,16 +290,12 @@ function update(){
   player.update();
 
   scoreTick++;
-  if(scoreTick >= 6){
+  if(scoreTick >= 5){
     score++;
     scoreTick = 0;
   }
 
-  // =====================
-  // FIXED SPAWN SYSTEM (IMPORTANT)
-  // =====================
   spawnTimer++;
-
   if(spawnTimer >= spawnGap){
     spikes.push(new Spike(canvas.width));
     spawnTimer = 0;
@@ -330,11 +325,14 @@ function draw(){
   player.draw();
   spikes.forEach(s=>s.draw());
 
-  // SCORE LEFT SIDE
+  // =====================
+  // 📊 BIG SCORE (RIGHT SIDE)
+  // =====================
   ctx.fillStyle = "white";
-  ctx.font = "32px Arial";
+  ctx.font = "bold 48px Arial";
+  ctx.textAlign = "right";
+  ctx.fillText("Score: " + score, canvas.width - 25, 65);
   ctx.textAlign = "left";
-  ctx.fillText("Score: " + score, 20, 50);
 
   if(!started){
     ctx.fillText("CLICK OR SPACE TO START", canvas.width/2 - 200, canvas.height/2);
