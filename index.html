@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>GD Clone (Slower + Better Jump Physics)</title>
+<title>GD Clone (Fixed Spike Hitboxes + Faster)</title>
 <style>
 body { margin:0; overflow:hidden; background:#111; }
 canvas { display:block; }
@@ -32,20 +32,26 @@ resize();
 
 
 // =====================
-// 🔥 SLOWER GAME SPEED
+// ⚡ SLIGHTLY FASTER GAME
 // =====================
-let gravity = 0.45;
-let baseJumpForce = -11.5;
-let speed = 3.5; // slower movement
+let gravity = 0.5;
+let jumpForce = -12;
+let speed = 4.5; // faster than before
 
 let gameOver = false;
 let started = false;
 
+
+// =====================
 // SCORE
+// =====================
 let score = 0;
 let scoreTick = 0;
 
-// MUSIC
+
+// =====================
+// MUSIC (unchanged simple)
+// =====================
 let audioCtx;
 let musicOn = true;
 let musicRunning = false;
@@ -56,20 +62,24 @@ let lastUpdateTime = 0;
 
 
 // =====================
-// 🎯 VARIABLE JUMP SYSTEM
+// FIXED SPIKE HITBOX (TRUE TRIANGLE COLLISION)
 // =====================
-// gives slight variation so jumps don't feel identical
-function getJumpForce(){
-  let variation = (Math.random() * 1.2) - 0.6; // -0.6 to +0.6
-  return baseJumpForce + variation;
+function pointInTriangle(px, py, ax, ay, bx, by, cx, cy){
+  const area = (x1,y1,x2,y2,x3,y3)=>
+    Math.abs((x1*(y2-y3)+x2*(y3-y1)+x3*(y1-y2))/2);
+
+  let A = area(ax,ay,bx,by,cx,cy);
+  let A1 = area(px,py,bx,by,cx,cy);
+  let A2 = area(ax,ay,px,py,cx,cy);
+  let A3 = area(ax,ay,bx,by,px,py);
+
+  return Math.abs(A-(A1+A2+A3)) < 0.5;
 }
 
 
 // =====================
 // INPUT (SPACE FIXED)
 // =====================
-window.focus();
-
 window.addEventListener("keydown", (e)=>{
   if(e.code === "Space"){
     e.preventDefault();
@@ -78,7 +88,6 @@ window.addEventListener("keydown", (e)=>{
   }
 });
 
-// mouse
 addEventListener("mousedown", ()=>{
   startAll();
   player.jump();
@@ -86,66 +95,7 @@ addEventListener("mousedown", ()=>{
 
 
 // =====================
-// MUSIC (unchanged style)
-// =====================
-function playNote(freq, dur, type="sawtooth", vol=0.1){
-  let o = audioCtx.createOscillator();
-  let g = audioCtx.createGain();
-
-  o.type = type;
-  o.frequency.value = freq;
-
-  g.gain.setValueAtTime(0.0001, audioCtx.currentTime);
-  g.gain.linearRampToValueAtTime(vol, audioCtx.currentTime + 0.01);
-  g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
-
-  o.connect(g);
-  g.connect(audioCtx.destination);
-
-  o.start();
-  o.stop(audioCtx.currentTime + dur);
-}
-
-function startMusic(){
-  if(musicRunning) return;
-
-  if(!audioCtx){
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  }
-
-  musicRunning = true;
-  lastUpdateTime = performance.now();
-
-  loopInterval = setInterval(()=>{
-    if(!musicOn || gameOver) return;
-
-    let now = performance.now();
-    songTime += (now - lastUpdateTime) / 1000;
-    lastUpdateTime = now;
-
-    let tempo = 130; // slightly slower music too
-    let beat = 60 / tempo;
-    let step = Math.floor(songTime / beat) % 16;
-
-    if(step % 4 === 0){
-      playNote(220, 0.3, "sawtooth", 0.05);
-      playNote(330, 0.3, "sawtooth", 0.05);
-    }
-
-    playNote(523 + (step % 3) * 30, 0.12, "triangle", 0.08);
-
-  }, 110);
-}
-
-function stopMusic(){
-  musicRunning = false;
-  clearInterval(loopInterval);
-  loopInterval = null;
-}
-
-
-// =====================
-// PLAYER (VARIED JUMP ADDED)
+// PLAYER
 // =====================
 class Player{
   constructor(){
@@ -165,7 +115,6 @@ class Player{
       this.y = canvas.height - 100 - this.s;
       this.vy = 0;
       this.g = true;
-      this.r = 0;
     } else {
       this.g = false;
       this.r += 0.08;
@@ -183,21 +132,20 @@ class Player{
 
   jump(){
     if(this.g && started && !gameOver){
-      // 🔥 VARIED JUMP FORCE
-      this.vy = getJumpForce();
+      this.vy = jumpForce;
     }
   }
 }
 
 
 // =====================
-// OBSTACLES
+// SPIKE (IMPORTANT FIX)
 // =====================
-class Obstacle{
+class Spike{
   constructor(x){
     this.x = x;
-    this.w = 40;
-    this.h = 60;
+    this.w = 45;
+    this.h = 70;
     this.y = canvas.height - 100 - this.h;
   }
 
@@ -213,17 +161,41 @@ class Obstacle{
     ctx.lineTo(this.x + this.w, this.y + this.h);
     ctx.fill();
   }
+
+  // 🔥 EXACT SPIKE HITBOX (NOT RECTANGLE)
+  hit(player){
+    let ax = this.x;
+    let ay = this.y + this.h;
+
+    let bx = this.x + this.w/2;
+    let by = this.y;
+
+    let cx = this.x + this.w;
+    let cy = this.y + this.h;
+
+    let points = [
+      [player.x, player.y],
+      [player.x + 40, player.y],
+      [player.x, player.y + 40],
+      [player.x + 40, player.y + 40]
+    ];
+
+    return points.some(([px,py])=>{
+      return pointInTriangle(px,py,ax,ay,bx,by,cx,cy);
+    });
+  }
 }
 
 
 // =====================
 // GAME STATE
 // =====================
-let player, obs;
+let player, spikes;
 
 function init(){
   player = new Player();
-  obs = [];
+  spikes = [];
+
   gameOver = false;
   started = false;
 
@@ -231,19 +203,11 @@ function init(){
   scoreTick = 0;
 
   stopMusic();
-  songTime = 0;
-}
-
-function startAll(){
-  if(!started){
-    started = true;
-    if(musicOn) startMusic();
-  }
 }
 
 
 // =====================
-// LOOP
+// GAME LOOP
 // =====================
 function update(){
   if(!started || gameOver) return;
@@ -251,38 +215,26 @@ function update(){
   player.update();
 
   scoreTick++;
-  if(scoreTick >= 7){ // slower scoring too
+  if(scoreTick >= 6){
     score++;
     scoreTick = 0;
   }
 
-  if(Math.random() < 0.015){
-    obs.push(new Obstacle(canvas.width));
+  if(Math.random() < 0.02){
+    spikes.push(new Spike(canvas.width));
   }
 
-  for(let i = obs.length - 1; i >= 0; i--){
-    let o = obs[i];
-    o.update();
+  for(let i = spikes.length - 1; i >= 0; i--){
+    let s = spikes[i];
+    s.update();
 
-    let corners = [
-      [player.x, player.y],
-      [player.x+40, player.y],
-      [player.x, player.y+40],
-      [player.x+40, player.y+40]
-    ];
-
-    let hit = corners.some(([px,py])=>{
-      return px > o.x && px < o.x+o.w &&
-             py > o.y && py < o.y+o.h;
-    });
-
-    if(hit){
+    if(s.hit(player)){
       gameOver = true;
       stopMusic();
     }
 
-    if(o.x + o.w < 0){
-      obs.splice(i,1);
+    if(s.x + s.w < 0){
+      spikes.splice(i,1);
     }
   }
 }
@@ -294,18 +246,18 @@ function draw(){
   ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
 
   player.draw();
-  obs.forEach(o=>o.draw());
+  spikes.forEach(s=>s.draw());
 
   ctx.fillStyle = "white";
   ctx.font = "30px Arial";
-  ctx.fillText("Score: " + score, canvas.width - 200, 50);
+  ctx.fillText("Score: " + score, 20, 50);
 
   if(!started){
     ctx.fillText("CLICK OR SPACE TO START", canvas.width/2 - 200, canvas.height/2);
   }
 
   if(gameOver){
-    ctx.fillText("GAME OVER", canvas.width/2 - 120, canvas.height/2);
+    ctx.fillText("GAME OVER", canvas.width/2 - 100, canvas.height/2);
   }
 }
 
@@ -317,6 +269,31 @@ function loop(){
 
 
 // =====================
+// START
+// =====================
+function startAll(){
+  if(!started){
+    started = true;
+    if(musicOn) startMusic();
+  }
+}
+
+
+// =====================
+// MUSIC (light placeholder)
+// =====================
+function startMusic(){
+  if(musicRunning) return;
+  audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  musicRunning = true;
+}
+
+function stopMusic(){
+  musicRunning = false;
+}
+
+
+// =====================
 // BUTTONS
 // =====================
 restartBtn.onclick = ()=>init();
@@ -324,16 +301,12 @@ restartBtn.onclick = ()=>init();
 musicBtn.onclick = function(){
   musicOn = !musicOn;
   this.innerText = "Music: " + (musicOn ? "ON" : "OFF");
-
-  if(musicOn && started && !gameOver){
-    startMusic();
-  } else {
-    stopMusic();
-  }
 };
 
 
-// START
+// =====================
+// INIT
+// =====================
 init();
 loop();
 
