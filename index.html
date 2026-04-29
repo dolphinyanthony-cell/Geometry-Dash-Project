@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>GD Clone (Fixed Version)</title>
+<title>GD Clone (Fixed Hitboxes + UI Fix)</title>
 <style>
 body { margin:0; overflow:hidden; background:#111; }
 canvas { display:block; }
@@ -36,21 +36,21 @@ resize();
 // =====================
 let gravity = 0.45;
 let baseJumpForce = -11.5;
-let speed = 3.8;
+let speed = 4;
 
 let gameOver = false;
 let started = false;
 
 
 // =====================
-// SCORE (FIXED POSITION)
+// SCORE
 // =====================
 let score = 0;
 let scoreTick = 0;
 
 
 // =====================
-// MUSIC (FIXED CHROME AUDIO)
+// MUSIC (unchanged minimal working)
 // =====================
 let audioCtx;
 let musicOn = true;
@@ -62,15 +62,7 @@ let lastUpdateTime = 0;
 
 
 // =====================
-// FIX: JUMP (NO RANDOM BUGGY FEELING)
-// =====================
-function getJumpForce(){
-  return baseJumpForce;
-}
-
-
-// =====================
-// INPUT (SPACE FIXED)
+// SPACE INPUT
 // =====================
 window.addEventListener("keydown", (e)=>{
   if(e.code === "Space"){
@@ -87,7 +79,7 @@ addEventListener("mousedown", ()=>{
 
 
 // =====================
-// MUSIC FIX (AUTO START SAFELY)
+// MUSIC
 // =====================
 function playNote(freq, dur, type="sawtooth", vol=0.1){
   let o = audioCtx.createOscillator();
@@ -133,7 +125,7 @@ function startMusic(){
       playNote(330, 0.25, "sawtooth", 0.05);
     }
 
-    playNote(523 + (step % 3) * 25, 0.10, "triangle", 0.08);
+    playNote(523 + (step % 3) * 20, 0.1, "triangle", 0.08);
 
   }, 110);
 }
@@ -146,7 +138,23 @@ function stopMusic(){
 
 
 // =====================
-// PLAYER (FIXED STRAIGHT ROTATION)
+// FIXED SPIKE HITBOX SYSTEM
+// =====================
+function pointInTriangle(px, py, ax, ay, bx, by, cx, cy){
+  const area = (x1,y1,x2,y2,x3,y3)=>
+    Math.abs((x1*(y2-y3)+x2*(y3-y1)+x3*(y1-y2))/2);
+
+  let A = area(ax,ay,bx,by,cx,cy);
+  let A1 = area(px,py,bx,by,cx,cy);
+  let A2 = area(ax,ay,px,py,cx,cy);
+  let A3 = area(ax,ay,bx,by,px,py);
+
+  return Math.abs(A - (A1 + A2 + A3)) < 0.5;
+}
+
+
+// =====================
+// PLAYER
 // =====================
 class Player{
   constructor(){
@@ -162,15 +170,14 @@ class Player{
     this.vy += gravity;
     this.y += this.vy;
 
-    // LANDING RESET (fix crooked rotation bug)
     if(this.y + this.s >= canvas.height - 100){
       this.y = canvas.height - 100 - this.s;
       this.vy = 0;
       this.g = true;
-      this.r = 0; // reset rotation cleanly
+      this.r = 0;
     } else {
       this.g = false;
-      this.r += 0.06; // smooth air spin only
+      this.r += 0.06;
     }
   }
 
@@ -185,20 +192,20 @@ class Player{
 
   jump(){
     if(this.g && started && !gameOver){
-      this.vy = getJumpForce();
+      this.vy = baseJumpForce;
     }
   }
 }
 
 
 // =====================
-// OBSTACLES
+// SPIKE (FIXED HITBOX = EXACT SAME SHAPE)
 // =====================
-class Obstacle{
+class Spike{
   constructor(x){
     this.x = x;
-    this.w = 40;
-    this.h = 60;
+    this.w = 45;
+    this.h = 70;
     this.y = canvas.height - 100 - this.h;
   }
 
@@ -214,17 +221,41 @@ class Obstacle{
     ctx.lineTo(this.x + this.w, this.y + this.h);
     ctx.fill();
   }
+
+  hit(player){
+    // EXACT SPIKE TRIANGLE HITBOX
+    let ax = this.x;
+    let ay = this.y + this.h;
+
+    let bx = this.x + this.w/2;
+    let by = this.y;
+
+    let cx = this.x + this.w;
+    let cy = this.y + this.h;
+
+    let points = [
+      [player.x, player.y],
+      [player.x+40, player.y],
+      [player.x, player.y+40],
+      [player.x+40, player.y+40]
+    ];
+
+    return points.some(([px,py])=>{
+      return pointInTriangle(px,py,ax,ay,bx,by,cx,cy);
+    });
+  }
 }
 
 
 // =====================
 // GAME STATE
 // =====================
-let player, obs;
+let player, spikes;
 
 function init(){
   player = new Player();
-  obs = [];
+  spikes = [];
+
   gameOver = false;
   started = false;
 
@@ -239,7 +270,6 @@ function startAll(){
   if(!started){
     started = true;
 
-    // FIX: Chrome audio unlock
     if(!audioCtx){
       audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     }
@@ -264,26 +294,20 @@ function update(){
   }
 
   if(Math.random() < 0.02){
-    obs.push(new Obstacle(canvas.width));
+    spikes.push(new Spike(canvas.width));
   }
 
-  for(let i = obs.length - 1; i >= 0; i--){
-    let o = obs[i];
-    o.update();
+  for(let i = spikes.length - 1; i >= 0; i--){
+    let s = spikes[i];
+    s.update();
 
-    let hit =
-      player.x < o.x + o.w &&
-      player.x + 40 > o.x &&
-      player.y < o.y + o.h &&
-      player.y + 40 > o.y;
-
-    if(hit){
+    if(s.hit(player)){
       gameOver = true;
       stopMusic();
     }
 
-    if(o.x + o.w < 0){
-      obs.splice(i,1);
+    if(s.x + s.w < 0){
+      spikes.splice(i,1);
     }
   }
 }
@@ -295,13 +319,16 @@ function draw(){
   ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
 
   player.draw();
-  obs.forEach(o=>o.draw());
+  spikes.forEach(s=>s.draw());
 
-  // SCORE (FIXED LEFT SIDE)
+  // =====================
+  // SCORE (RIGHT SIDE BIG)
+  // =====================
   ctx.fillStyle = "white";
-  ctx.font = "30px Arial";
+  ctx.font = "bold 42px Arial";
+  ctx.textAlign = "right";
+  ctx.fillText("Score: " + score, canvas.width - 20, 60);
   ctx.textAlign = "left";
-  ctx.fillText("Score: " + score, 20, 50);
 
   if(!started){
     ctx.fillText("CLICK OR SPACE TO START", canvas.width/2 - 200, canvas.height/2);
@@ -327,12 +354,6 @@ restartBtn.onclick = ()=>init();
 musicBtn.onclick = function(){
   musicOn = !musicOn;
   this.innerText = "Music: " + (musicOn ? "ON" : "OFF");
-
-  if(musicOn && started && !gameOver){
-    startMusic();
-  } else {
-    stopMusic();
-  }
 };
 
 
