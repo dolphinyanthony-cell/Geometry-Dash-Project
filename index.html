@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>GD Clone (Music Fixed)</title>
+<title>GD Clone (End at 1000)</title>
 <style>
 body { margin:0; overflow:hidden; background:#111; }
 canvas { display:block; }
@@ -40,10 +40,21 @@ let speed = 6.2;
 
 let gameOver = false;
 let started = false;
+let levelComplete = false;
 
 
 // =====================
-// AUDIO FIX (IMPORTANT)
+// SCORE + END
+// =====================
+let score = 0;
+let scoreTick = 0;
+
+// 🏁 FIXED END
+const LEVEL_END = 1000;
+
+
+// =====================
+// MUSIC (safe version)
 // =====================
 let audioCtx;
 let musicOn = true;
@@ -62,10 +73,6 @@ function unlockAudio(){
   }
 }
 
-
-// =====================
-// MUSIC ENGINE
-// =====================
 function playNote(freq, dur, type="sawtooth", vol=0.08){
   let o = audioCtx.createOscillator();
   let g = audioCtx.createGain();
@@ -93,7 +100,7 @@ function startMusic(){
   lastUpdateTime = performance.now();
 
   loopInterval = setInterval(()=>{
-    if(!musicOn || gameOver) return;
+    if(!musicOn || gameOver || levelComplete) return;
 
     let now = performance.now();
     songTime += (now - lastUpdateTime) / 1000;
@@ -120,7 +127,7 @@ function stopMusic(){
 
 
 // =====================
-// INPUT (FIXED AUDIO UNLOCK)
+// INPUT
 // =====================
 window.addEventListener("keydown", (e)=>{
   if(e.code === "Space"){
@@ -176,7 +183,7 @@ class Player{
   }
 
   jump(){
-    if(this.g && started && !gameOver){
+    if(this.g && started && !gameOver && !levelComplete){
       this.vy = jumpForce;
     }
   }
@@ -265,6 +272,10 @@ function init(){
 
   gameOver = false;
   started = false;
+  levelComplete = false;
+
+  score = 0;
+  scoreTick = 0;
 
   spawnTimer = 0;
   currentGap = getGap();
@@ -286,9 +297,22 @@ function startAll(){
 // LOOP
 // =====================
 function update(){
-  if(!started || gameOver) return;
+  if(!started || gameOver || levelComplete) return;
 
   player.update();
+
+  // 🏁 END CONDITION
+  if(score >= LEVEL_END){
+    levelComplete = true;
+    stopMusic();
+    return;
+  }
+
+  scoreTick++;
+  if(scoreTick >= 3){
+    score++;
+    scoreTick = 0;
+  }
 
   spawnTimer++;
   if(spawnTimer >= currentGap){
@@ -324,7 +348,7 @@ function draw(){
   ctx.fillStyle = "white";
   ctx.font = "bold 40px Arial";
   ctx.textAlign = "right";
-  ctx.fillText("Score Game", canvas.width - 20, 60);
+  ctx.fillText("Score: " + score, canvas.width - 20, 60);
   ctx.textAlign = "left";
 
   if(!started){
@@ -333,6 +357,15 @@ function draw(){
 
   if(gameOver){
     ctx.fillText("GAME OVER", canvas.width/2 - 120, canvas.height/2);
+  }
+
+  if(levelComplete){
+    ctx.fillStyle = "#00ff99";
+    ctx.font = "bold 60px Arial";
+    ctx.textAlign = "center";
+    ctx.fillText("LEVEL COMPLETE!", canvas.width/2, canvas.height/2);
+    ctx.font = "30px Arial";
+    ctx.fillText("You reached 1000!", canvas.width/2, canvas.height/2 + 50);
   }
 }
 
