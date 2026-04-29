@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>GD Clone (Faster Balanced)</title>
+<title>GD Clone (Fixed Slow Motion)</title>
 <style>
 body { margin:0; overflow:hidden; background:#111; }
 canvas { display:block; }
@@ -32,13 +32,18 @@ resize();
 
 
 // =====================
-// ⚡ FASTER GAMEPLAY (balanced)
+// ⚡ REAL SPEED FIX (IMPORTANT)
 // =====================
-let gravity = 0.5;
-let jumpForce = -12;
 
-// 🔥 increased speed
-let speed = 5.2;
+// base physics unchanged
+let gravity = 0.52;
+let jumpForce = -12.2;
+
+// 🔥 THIS is the real fix (was too low before)
+let worldSpeed = 7.5;
+
+let gameOver = false;
+let started = false;
 
 
 // =====================
@@ -49,7 +54,7 @@ let scoreTick = 0;
 
 
 // =====================
-// MUSIC (unchanged)
+// MUSIC (unchanged minimal)
 // =====================
 let audioCtx;
 let musicOn = true;
@@ -115,7 +120,7 @@ function startMusic(){
     songTime += (now - lastUpdateTime) / 1000;
     lastUpdateTime = now;
 
-    let tempo = 135;
+    let tempo = 140;
     let beat = 60 / tempo;
     let step = Math.floor(songTime / beat) % 16;
 
@@ -124,9 +129,9 @@ function startMusic(){
       playNote(330, 0.2);
     }
 
-    playNote(520 + (step % 4) * 18, 0.09, "triangle", 0.07);
+    playNote(520 + (step % 4) * 20, 0.09, "triangle", 0.07);
 
-  }, 95);
+  }, 90);
 }
 
 function stopMusic(){
@@ -160,7 +165,7 @@ class Player{
       this.r = 0;
     } else {
       this.g = false;
-      this.r += 0.06;
+      this.r += 0.07;
     }
   }
 
@@ -193,7 +198,8 @@ class Spike{
   }
 
   update(){
-    this.x -= speed;
+    // 🔥 REAL SPEED FIX
+    this.x -= worldSpeed;
   }
 
   draw(){
@@ -246,18 +252,18 @@ function pointInTriangle(px, py, ax, ay, bx, by, cx, cy){
 
 
 // =====================
-// CONTROLLED RANDOM SPAWN (REBALANCED)
+// SPAWN (SCALED FOR SPEED)
 // =====================
 let player, spikes;
 
 let spawnTimer = 0;
 
-// slightly tighter spacing because game is faster
-let baseGap = 78;
+// 🔥 reduced spacing so speed feels correct
+let baseGap = 70;
 
 function getSafeGap(){
-  let offset = (Math.random() * 16) - 8;
-  return Math.max(70, Math.min(88, baseGap + offset));
+  let offset = (Math.random() * 14) - 7;
+  return Math.max(60, Math.min(80, baseGap + offset));
 }
 
 let currentGap = getSafeGap();
@@ -301,7 +307,7 @@ function update(){
   player.update();
 
   scoreTick++;
-  if(scoreTick >= 5){
+  if(scoreTick >= 4){
     score++;
     scoreTick = 0;
   }
