@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>GD Clone (Fixed Music)</title>
+<title>GD Clone (Fixed Music Resume)</title>
 <style>
 body { margin:0; overflow:hidden; background:#111; }
 canvas { display:block; }
@@ -27,127 +27,112 @@ addEventListener("resize", resize); resize();
 let gravity=0.6, jumpForce=-12, speed=6;
 let gameOver=false, started=false;
 
-let audioCtx, musicOn=true, musicStarted=false, loopTimer=null;
-let musicStartTime = 0; // global timeline reference
-let pausedTime = 0;
+// ===== MUSIC SYSTEM =====
+let audioCtx;
+let musicOn = true;
+let musicRunning = false;
+let loopInterval = null;
 
-function osc(type,freq,time,dur,vol=0.1){
-  let o=audioCtx.createOscillator();
-  let g=audioCtx.createGain();
+let songTime = 0;        // where the song SHOULD be
+let lastUpdateTime = 0;  // real time tracker
 
-  o.type=type;
-  o.frequency.setValueAtTime(freq,time);
+function playNote(freq, dur, type="sawtooth", vol=0.1){
+  let o = audioCtx.createOscillator();
+  let g = audioCtx.createGain();
 
-  g.gain.setValueAtTime(0.0001,time);
-  g.gain.linearRampToValueAtTime(vol,time+0.02);
-  g.gain.exponentialRampToValueAtTime(0.0001,time+dur);
+  o.type = type;
+  o.frequency.value = freq;
+
+  g.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+  g.gain.linearRampToValueAtTime(vol, audioCtx.currentTime + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
 
   o.connect(g); g.connect(audioCtx.destination);
-  o.start(time); o.stop(time+dur);
+  o.start();
+  o.stop(audioCtx.currentTime + dur);
 }
 
-const prog = [
+// chord progression
+const chords = [
   [261.6,311.1,392.0],
   [207.7,261.6,311.1],
   [233.1,293.7,349.2],
   [261.6,311.1,392.0]
 ];
 
-const lead = [
-  523,587,659,698,659,587,523,
-  659,784,880,784,659,587
-];
+// melody
+const melody = [523,587,659,698,659,587,523,659,784,880,784,659];
 
 function startMusic(){
-  if(musicStarted) return;
-  audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-  musicStarted=true;
+  if(musicRunning) return;
 
-  // keep global timeline consistent
-  musicStartTime = audioCtx.currentTime - pausedTime;
-  if(musicStarted) return;
-  audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-  musicStarted=true;
-
-  let tempo=140;
-  let beat=60/tempo;
-  let t = audioCtx.currentTime;
-
-  function loop(){
-    if(!musicOn || gameOver){
-      stopMusic();
-      return;
-    }
-
-    prog.forEach((chord,i)=>{
-      chord.forEach(n=>{
-        osc("sawtooth",n,t+i*4*beat,4*beat,0.06);
-      });
-    });
-
-    prog.forEach((chord,i)=>{
-      osc("square",chord[0]/2,t+i*4*beat,4*beat,0.1);
-    });
-
-    lead.forEach((n,i)=>{
-      osc("triangle",n,t+i*beat*0.5,0.2,0.1);
-    });
-
-    for(let i=0;i<32;i++){
-      let time=t+i*beat;
-
-      if(i%4===0){
-        let o=audioCtx.createOscillator();
-        let g=audioCtx.createGain();
-        o.frequency.setValueAtTime(120,time);
-        o.frequency.exponentialRampToValueAtTime(40,time+0.1);
-        g.gain.setValueAtTime(0.4,time);
-        g.gain.exponentialRampToValueAtTime(0.0001,time+0.2);
-        o.connect(g); g.connect(audioCtx.destination);
-        o.start(time); o.stop(time+0.2);
-      }
-
-      if(i%4===2){
-        let buffer = audioCtx.createBuffer(1,44100,44100);
-        let data = buffer.getChannelData(0);
-        for(let j=0;j<44100;j++){ data[j]=Math.random()*2-1; }
-
-        let noise = audioCtx.createBufferSource();
-        noise.buffer = buffer;
-
-        let g = audioCtx.createGain();
-        g.gain.setValueAtTime(0.2,time);
-        g.gain.exponentialRampToValueAtTime(0.0001,time+0.2);
-
-        noise.connect(g);
-        g.connect(audioCtx.destination);
-        noise.start(time);
-      }
-    }
-
-    t += 16*beat;
-    loopTimer = setTimeout(loop,16*beat*1000);
+  if(!audioCtx){
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   }
 
-  loop();
+  musicRunning = true;
+  lastUpdateTime = performance.now();
+
+  loopInterval = setInterval(()=>{
+    if(!musicOn || gameOver) return;
+
+    // advance song timeline EVEN IF paused before
+    let now = performance.now();
+    songTime += (now - lastUpdateTime) / 1000;
+    lastUpdateTime = now;
+
+    let tempo = 140;
+    let beat = 60/tempo;
+
+    // use songTime to determine position
+    let step = Math.floor(songTime / beat) % 16;
+
+    // chords every 4 beats
+    if(step % 4 === 0){
+      let chord = chords[Math.floor(step/4)%chords.length];
+      chord.forEach(n => playNote(n, 0.4, "sawtooth", 0.06));
+      playNote(chord[0]/2, 0.4, "square", 0.1);
+    }
+
+    // melody
+    let note = melody[step % melody.length];
+    playNote(note, 0.15, "triangle", 0.1);
+
+    // kick
+    if(step % 4 === 0){
+      playNote(100, 0.1, "sine", 0.3);
+    }
+
+    // snare
+    if(step % 4 === 2){
+      let buffer = audioCtx.createBuffer(1,44100,44100);
+      let data = buffer.getChannelData(0);
+      for(let i=0;i<44100;i++) data[i]=Math.random()*2-1;
+
+      let noise = audioCtx.createBufferSource();
+      noise.buffer = buffer;
+
+      let g = audioCtx.createGain();
+      g.gain.setValueAtTime(0.2, audioCtx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.2);
+
+      noise.connect(g);
+      g.connect(audioCtx.destination);
+      noise.start();
+    }
+
+  }, 100);
 }
 
 function stopMusic(){
-  if(audioCtx){
-    pausedTime = audioCtx.currentTime - musicStartTime;
-  }
-  musicStarted=false;
-  if(loopTimer){
-    clearTimeout(loopTimer);
-    loopTimer=null;
-  }
-  if(audioCtx){
-    audioCtx.close();
-    audioCtx=null;
+  musicRunning = false;
+  if(loopInterval){
+    clearInterval(loopInterval);
+    loopInterval = null;
   }
 }
 
-// GAME
+// ===== GAME =====
 class Player{
   constructor(){ this.x=150; this.y=canvas.height-150; this.s=40; this.vy=0; this.g=false; this.r=0;}
   update(){
@@ -158,8 +143,11 @@ class Player{
     } else { this.g=false; this.r+=0.1; }
   }
   draw(){
-    ctx.save(); ctx.translate(this.x+20,this.y+20); ctx.rotate(this.r);
-    ctx.fillStyle="#0ff"; ctx.fillRect(-20,-20,40,40);
+    ctx.save();
+    ctx.translate(this.x+20,this.y+20);
+    ctx.rotate(this.r);
+    ctx.fillStyle="#0ff";
+    ctx.fillRect(-20,-20,40,40);
     ctx.restore();
   }
   jump(){ if(this.g && started && !gameOver) this.vy=jumpForce; }
@@ -184,6 +172,7 @@ function init(){
   player=new Player(); obs=[]; frame=0;
   gameOver=false; started=false;
   stopMusic();
+  songTime = 0;
 }
 
 function update(){
@@ -237,16 +226,17 @@ addEventListener("keydown",e=>{
   if(e.code==="Space"){ e.preventDefault(); startAll(); player.jump(); }
 });
 
+// UI
 restartBtn.onclick=()=>init();
 
 musicBtn.onclick=function(){
   musicOn=!musicOn;
   this.innerText="Music: "+(musicOn?"ON":"OFF");
 
-  if(!musicOn){
-    stopMusic();
-  } else if(started && !gameOver){
+  if(musicOn && started && !gameOver){
     startMusic();
+  } else {
+    stopMusic();
   }
 };
 
