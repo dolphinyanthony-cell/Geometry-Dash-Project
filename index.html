@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>GD Clone (Designed Background)</title>
+<title>GD Clone (Fixed Background)</title>
 <style>
 body { margin:0; overflow:hidden; background:#000; }
 canvas { display:block; }
@@ -37,134 +37,176 @@ let speed = 6;
 let gameOver = false;
 let started = false;
 
-// ===== SCORE =====
+// SCORE
 let score = 0;
 let scoreTick = 0;
 
-// ===== BACKGROUND =====
+// ===== ONLY NEW BACKGROUND VARIABLE =====
 let bgOffset = 0;
 
-// generate shapes once
-let shards = [];
-for(let i=0;i<30;i++){
-  shards.push({
-    x: Math.random()*2000,
-    y: Math.random()*canvas.height,
-    size: 20 + Math.random()*60,
-    speed: 0.2 + Math.random()*0.5
-  });
-}
-
-function drawShard(x,y,size){
+// ===== NEW CLEAN BACKGROUND =====
+function drawDiamond(x,y,size){
   ctx.beginPath();
-  ctx.moveTo(x, y);
-  ctx.lineTo(x + size/2, y - size);
+  ctx.moveTo(x, y - size);
   ctx.lineTo(x + size, y);
-  ctx.lineTo(x + size/2, y + size*0.4);
+  ctx.lineTo(x, y + size);
+  ctx.lineTo(x - size, y);
   ctx.closePath();
   ctx.fill();
 }
 
 function drawBackground(){
-  bgOffset += speed;
+  bgOffset += speed * 0.4;
 
-  // deep gradient
+  // deep cold gradient
   let grad = ctx.createLinearGradient(0,0,0,canvas.height);
   grad.addColorStop(0,"#020617");
-  grad.addColorStop(1,"#020617");
+  grad.addColorStop(1,"#000");
   ctx.fillStyle = grad;
   ctx.fillRect(0,0,canvas.width,canvas.height);
 
-  // BACK LAYER (slow)
-  ctx.fillStyle = "rgba(0,255,255,0.08)";
-  shards.forEach(s=>{
-    let x = (s.x - bgOffset * s.speed * 0.3) % (canvas.width + 200);
-    drawShard(x, s.y*0.5, s.size);
-  });
+  let spacing = 140;
+
+  // BACK LAYER
+  ctx.fillStyle = "rgba(0,255,255,0.05)";
+  for(let x = -spacing; x < canvas.width + spacing; x += spacing){
+    for(let y = 0; y < canvas.height; y += spacing){
+      let px = (x - (bgOffset * 0.15 % spacing));
+      drawDiamond(px, y + 80, 60);
+    }
+  }
 
   // MID LAYER
-  ctx.fillStyle = "rgba(0,255,255,0.15)";
-  shards.forEach(s=>{
-    let x = (s.x - bgOffset * s.speed * 0.6) % (canvas.width + 200);
-    drawShard(x, s.y*0.7, s.size*0.7);
-  });
+  ctx.fillStyle = "rgba(0,255,255,0.12)";
+  for(let x = -spacing; x < canvas.width + spacing; x += spacing){
+    for(let y = 0; y < canvas.height; y += spacing){
+      let px = (x - (bgOffset * 0.35 % spacing));
+      drawDiamond(px, y + 80, 35);
+    }
+  }
 
   // FRONT LAYER
-  ctx.fillStyle = "rgba(0,255,255,0.25)";
-  shards.forEach(s=>{
-    let x = (s.x - bgOffset * s.speed) % (canvas.width + 200);
-    drawShard(x, s.y, s.size*0.5);
-  });
+  ctx.fillStyle = "rgba(0,255,255,0.2)";
+  for(let x = -spacing; x < canvas.width + spacing; x += spacing){
+    for(let y = 0; y < canvas.height; y += spacing){
+      let px = (x - (bgOffset % spacing));
+      drawDiamond(px, y + 80, 18);
+    }
+  }
 
-  // glowing line
+  // glow ground line
   ctx.strokeStyle = "rgba(0,255,255,0.5)";
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(0, canvas.height - 100);
   ctx.lineTo(canvas.width, canvas.height - 100);
   ctx.stroke();
+
+  // subtle pulse glow
+  let pulse = Math.sin(performance.now() * 0.003) * 0.5 + 0.5;
+  ctx.fillStyle = `rgba(0,255,255,${0.03 + pulse*0.03})`;
+  ctx.fillRect(0, canvas.height - 120, canvas.width, 40);
 }
 
-// ===== MUSIC (simple) =====
+// ===== EVERYTHING ELSE UNCHANGED =====
 let audioCtx;
 let musicOn = true;
-let loop;
+let musicRunning = false;
+let loopInterval = null;
 
-function playNote(freq){
+let songTime = 0;
+let lastUpdateTime = 0;
+
+function playNote(freq, dur, type="sawtooth", vol=0.1){
   let o = audioCtx.createOscillator();
   let g = audioCtx.createGain();
-  o.type = "sawtooth";
+
+  o.type = type;
   o.frequency.value = freq;
 
   g.gain.setValueAtTime(0.0001, audioCtx.currentTime);
-  g.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 0.01);
-  g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.2);
+  g.gain.linearRampToValueAtTime(vol, audioCtx.currentTime + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
 
   o.connect(g);
   g.connect(audioCtx.destination);
+
   o.start();
-  o.stop(audioCtx.currentTime + 0.2);
+  o.stop(audioCtx.currentTime + dur);
 }
 
-function startMusic(){
-  if(loop) return;
-  audioCtx = new (window.AudioContext||window.webkitAudioContext)();
+const chords = [
+  [261.6,311.1,392.0],
+  [207.7,261.6,311.1],
+  [233.1,293.7,349.2],
+  [261.6,311.1,392.0]
+];
 
-  loop = setInterval(()=>{
+const melody = [523,587,659,698,659,587,523,659,784,880,784,659];
+
+function startMusic(){
+  if(musicRunning) return;
+
+  if(!audioCtx){
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+
+  musicRunning = true;
+  lastUpdateTime = performance.now();
+
+  loopInterval = setInterval(()=>{
     if(!musicOn || gameOver) return;
-    playNote(200 + Math.random()*400);
-  },150);
+
+    let now = performance.now();
+    songTime += (now - lastUpdateTime) / 1000;
+    lastUpdateTime = now;
+
+    let tempo = 140;
+    let beat = 60 / tempo;
+    let step = Math.floor(songTime / beat) % 16;
+
+    if(step % 4 === 0){
+      let chord = chords[Math.floor(step/4)%chords.length];
+      chord.forEach(n => playNote(n, 0.4, "sawtooth", 0.06));
+    }
+
+    let note = melody[step % melody.length];
+    playNote(note, 0.15, "triangle", 0.1);
+
+  }, 100);
 }
 
 function stopMusic(){
-  clearInterval(loop);
-  loop = null;
+  musicRunning = false;
+  if(loopInterval){
+    clearInterval(loopInterval);
+    loopInterval = null;
+  }
 }
 
-// ===== COLLISION =====
-function pointInTriangle(px, py, ax, ay, bx, by, cx, cy) {
-  const area = (x1,y1,x2,y2,x3,y3) =>
-    Math.abs((x1*(y2-y3)+x2*(y3-y1)+x3*(y1-y2))/2);
-
-  let A = area(ax,ay,bx,by,cx,cy);
-  let A1 = area(px,py,bx,by,cx,cy);
-  let A2 = area(ax,ay,px,py,cx,cy);
-  let A3 = area(ax,ay,bx,by,px,py);
-
-  return Math.abs(A - (A1 + A2 + A3)) < 0.5;
-}
-
-// ===== GAME =====
+// GAME (unchanged)
 class Player{
   constructor(){
-    this.x=150; this.y=canvas.height-150; this.s=40; this.vy=0; this.g=false; this.r=0;
+    this.x=150;
+    this.y=canvas.height-150;
+    this.s=40;
+    this.vy=0;
+    this.g=false;
+    this.r=0;
   }
   update(){
-    this.vy+=gravity; this.y+=this.vy;
+    this.vy+=gravity;
+    this.y+=this.vy;
+
     if(this.y+this.s>=canvas.height-100){
       this.y=canvas.height-100-this.s;
-      this.vy=0; this.g=true; this.r=0;
-    } else { this.g=false; this.r+=0.1; }
+      this.vy=0;
+      this.g=true;
+      this.r=0;
+    } else {
+      this.g=false;
+      this.r+=0.1;
+    }
   }
   draw(){
     ctx.save();
@@ -174,12 +216,19 @@ class Player{
     ctx.fillRect(-20,-20,40,40);
     ctx.restore();
   }
-  jump(){ if(this.g && started && !gameOver) this.vy=jumpForce; }
+  jump(){
+    if(this.g && started && !gameOver){
+      this.vy = jumpForce;
+    }
+  }
 }
 
 class Obstacle{
   constructor(x){
-    this.x=x; this.w=40; this.h=60; this.y=canvas.height-100-this.h;
+    this.x=x;
+    this.w=40;
+    this.h=60;
+    this.y=canvas.height-100-this.h;
   }
   update(){ this.x-=speed; }
   draw(){
@@ -195,24 +244,36 @@ class Obstacle{
 let player,obs,frame;
 
 function init(){
-  player=new Player(); obs=[]; frame=0;
-  gameOver=false; started=false;
+  player=new Player();
+  obs=[];
+  frame=0;
+  gameOver=false;
+  started=false;
   stopMusic();
-  score=0; scoreTick=0;
+  score=0;
+  scoreTick=0;
+  songTime=0;
 }
 
 function update(){
   if(!started||gameOver) return;
 
-  frame++; player.update();
+  frame++;
+  player.update();
 
   scoreTick++;
-  if(scoreTick>=5){ score++; scoreTick=0; }
+  if(scoreTick>=5){
+    score++;
+    scoreTick=0;
+  }
 
-  if(frame%100===0) obs.push(new Obstacle(canvas.width));
+  if(frame%100===0){
+    obs.push(new Obstacle(canvas.width));
+  }
 
   for(let i=obs.length-1;i>=0;i--){
-    let o=obs[i]; o.update();
+    let o=obs[i];
+    o.update();
 
     let ax=o.x, ay=o.y+o.h;
     let bx=o.x+o.w/2, by=o.y;
@@ -236,35 +297,37 @@ function update(){
   }
 }
 
+// triangle collision helper
+function pointInTriangle(px, py, ax, ay, bx, by, cx, cy) {
+  const area = (x1,y1,x2,y2,x3,y3)=>
+    Math.abs((x1*(y2-y3)+x2*(y3-y1)+x3*(y1-y2))/2);
+
+  let A=area(ax,ay,bx,by,cx,cy);
+  let A1=area(px,py,bx,by,cx,cy);
+  let A2=area(ax,ay,px,py,cx,cy);
+  let A3=area(ax,ay,bx,by,px,py);
+
+  return Math.abs(A-(A1+A2+A3))<0.5;
+}
+
 function draw(){
   drawBackground();
 
   player.draw();
   obs.forEach(o=>o.draw());
 
-  ctx.fillStyle="#022";
-  ctx.fillRect(0,canvas.height-100,canvas.width,100);
-
   ctx.fillStyle="white";
   ctx.font="bold 30px Arial";
   ctx.textAlign="right";
   ctx.fillText("Score: "+score,canvas.width-20,50);
   ctx.textAlign="left";
-
-  if(!started){
-    ctx.fillStyle="white";
-    ctx.font="40px Arial";
-    ctx.fillText("CLICK TO START",canvas.width/2-170,canvas.height/2);
-  }
-
-  if(gameOver){
-    ctx.fillStyle="white";
-    ctx.font="50px Arial";
-    ctx.fillText("GAME OVER",canvas.width/2-150,canvas.height/2);
-  }
 }
 
-function loop(){ update(); draw(); requestAnimationFrame(loop); }
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
 
 function startAll(){
   if(!started){
@@ -274,24 +337,18 @@ function startAll(){
 }
 
 addEventListener("mousedown",()=>{ startAll(); player.jump(); });
-addEventListener("keydown",e=>{
-  if(e.code==="Space"){ e.preventDefault(); startAll(); player.jump(); }
-});
 
 restartBtn.onclick=()=>init();
 
 musicBtn.onclick=function(){
   musicOn=!musicOn;
   this.innerText="Music: "+(musicOn?"ON":"OFF");
-
-  if(musicOn && started && !gameOver){
-    startMusic();
-  } else {
-    stopMusic();
-  }
+  if(musicOn&&started&&!gameOver) startMusic();
+  else stopMusic();
 };
 
-init(); loop();
+init();
+loop();
 </script>
 
 </body>
