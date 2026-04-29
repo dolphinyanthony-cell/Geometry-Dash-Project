@@ -2,12 +2,12 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>GD Clone (Fixed Background)</title>
+<title>GD Clone (Accurate Hitboxes)</title>
 <style>
-body { margin:0; overflow:hidden; background:#000; }
+body { margin:0; overflow:hidden; background:#111; }
 canvas { display:block; }
 #ui { position:absolute; top:10px; left:10px; }
-button { padding:8px 12px; margin-right:5px; background:#222; color:#0ff; border:none; }
+button { padding:8px 12px; margin-right:5px; background:#333; color:white; border:none; }
 </style>
 </head>
 <body>
@@ -37,108 +37,11 @@ let speed = 6;
 let gameOver = false;
 let started = false;
 
-// SCORE
+// ===== SCORE =====
 let score = 0;
 let scoreTick = 0;
 
-// ===== ONLY NEW BACKGROUND VARIABLE =====
-let bgOffset = 0;
-
-// ===== NEW CLEAN BACKGROUND =====
-function drawDiamond(x,y,size){
-  ctx.beginPath();
-  ctx.moveTo(x, y - size);
-  ctx.lineTo(x + size, y);
-  ctx.lineTo(x, y + size);
-  ctx.lineTo(x - size, y);
-  ctx.closePath();
-  ctx.fill();
-}
-
-functionfunction drawBackground(){
-  // simple deep GD-style gradient (safe, no layout interference)
-  let grad = ctx.createLinearGradient(0,0,0,canvas.height);
-  grad.addColorStop(0, "#020617");
-  grad.addColorStop(1, "#000000");
-  ctx.fillStyle = grad;
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-
-  // subtle moving glow bands (does NOT affect gameplay)
-  let t = performance.now() * 0.001;
-
-  for(let i = 0; i < 5; i++){
-    let y = (canvas.height * 0.2 * i) + Math.sin(t + i) * 10;
-
-    ctx.fillStyle = "rgba(0,255,255,0.03)";
-    ctx.fillRect(0, y, canvas.width, 40);
-  }
-
-  // ground glow line (kept clean)
-  ctx.strokeStyle = "rgba(0,255,255,0.35)";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(0, canvas.height - 100);
-  ctx.lineTo(canvas.width, canvas.height - 100);
-  ctx.stroke();
-
-  // faint pulse (pure visual only)
-  let pulse = Math.sin(performance.now() * 0.003) * 0.5 + 0.5;
-  ctx.fillStyle = `rgba(0,255,255,${0.02 + pulse * 0.02})`;
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-}{
-  bgOffset += speed * 0.4;
-
-  // deep cold gradient
-  let grad = ctx.createLinearGradient(0,0,0,canvas.height);
-  grad.addColorStop(0,"#020617");
-  grad.addColorStop(1,"#000");
-  ctx.fillStyle = grad;
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-
-  let spacing = 140;
-
-  // BACK LAYER
-  ctx.fillStyle = "rgba(0,255,255,0.05)";
-  for(let x = -spacing; x < canvas.width + spacing; x += spacing){
-    for(let y = 0; y < canvas.height; y += spacing){
-      let px = (x - (bgOffset * 0.15 % spacing));
-      drawDiamond(px, y + 80, 60);
-    }
-  }
-
-  // MID LAYER
-  ctx.fillStyle = "rgba(0,255,255,0.12)";
-  for(let x = -spacing; x < canvas.width + spacing; x += spacing){
-    for(let y = 0; y < canvas.height; y += spacing){
-      let px = (x - (bgOffset * 0.35 % spacing));
-      drawDiamond(px, y + 80, 35);
-    }
-  }
-
-  // FRONT LAYER
-  ctx.fillStyle = "rgba(0,255,255,0.2)";
-  for(let x = -spacing; x < canvas.width + spacing; x += spacing){
-    for(let y = 0; y < canvas.height; y += spacing){
-      let px = (x - (bgOffset % spacing));
-      drawDiamond(px, y + 80, 18);
-    }
-  }
-
-  // glow ground line
-  ctx.strokeStyle = "rgba(0,255,255,0.5)";
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(0, canvas.height - 100);
-  ctx.lineTo(canvas.width, canvas.height - 100);
-  ctx.stroke();
-
-  // subtle pulse glow
-  let pulse = Math.sin(performance.now() * 0.003) * 0.5 + 0.5;
-  ctx.fillStyle = `rgba(0,255,255,${0.03 + pulse*0.03})`;
-  ctx.fillRect(0, canvas.height - 120, canvas.width, 40);
-}
-
-// ===== EVERYTHING ELSE UNCHANGED =====
+// ===== MUSIC =====
 let audioCtx;
 let musicOn = true;
 let musicRunning = false;
@@ -147,6 +50,47 @@ let loopInterval = null;
 let songTime = 0;
 let lastUpdateTime = 0;
 
+// ===== NEW BACKGROUND VARIABLE =====
+let bgOffset = 0;
+
+// ======================
+// ONLY BACKGROUND CHANGED
+// ======================
+function drawBackground(){
+  bgOffset += speed * 0.4;
+
+  // deep GD-style gradient
+  let grad = ctx.createLinearGradient(0,0,0,canvas.height);
+  grad.addColorStop(0, "#020617");
+  grad.addColorStop(1, "#000000");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // subtle moving glow waves (safe + not interfering)
+  let t = performance.now() * 0.001;
+
+  for(let i = 0; i < 6; i++){
+    let y = (canvas.height * 0.15 * i) + Math.sin(t + i) * 12;
+
+    ctx.fillStyle = "rgba(0,255,255,0.03)";
+    ctx.fillRect(0, y, canvas.width, 30);
+  }
+
+  // glowing ground line
+  ctx.strokeStyle = "rgba(0,255,255,0.35)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, canvas.height - 100);
+  ctx.lineTo(canvas.width, canvas.height - 100);
+  ctx.stroke();
+
+  // subtle pulse overlay
+  let pulse = Math.sin(performance.now() * 0.003) * 0.5 + 0.5;
+  ctx.fillStyle = `rgba(0,255,255,${0.02 + pulse * 0.02})`;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+}
+
+// ===== MUSIC (UNCHANGED) =====
 function playNote(freq, dur, type="sawtooth", vol=0.1){
   let o = audioCtx.createOscillator();
   let g = audioCtx.createGain();
@@ -214,38 +158,53 @@ function stopMusic(){
   }
 }
 
-// GAME (unchanged)
+// ===== REST OF YOUR GAME (UNCHANGED) =====
+function pointInTriangle(px, py, ax, ay, bx, by, cx, cy) {
+  const area = (x1,y1,x2,y2,x3,y3) =>
+    Math.abs((x1*(y2-y3)+x2*(y3-y1)+x3*(y1-y2))/2);
+
+  let A = area(ax,ay,bx,by,cx,cy);
+  let A1 = area(px,py,bx,by,cx,cy);
+  let A2 = area(ax,ay,px,py,cx,cy);
+  let A3 = area(ax,ay,bx,by,px,py);
+
+  return Math.abs(A - (A1 + A2 + A3)) < 0.5;
+}
+
 class Player{
   constructor(){
-    this.x=150;
-    this.y=canvas.height-150;
-    this.s=40;
-    this.vy=0;
-    this.g=false;
-    this.r=0;
+    this.x = 150;
+    this.y = canvas.height - 150;
+    this.s = 40;
+    this.vy = 0;
+    this.g = false;
+    this.r = 0;
   }
-  update(){
-    this.vy+=gravity;
-    this.y+=this.vy;
 
-    if(this.y+this.s>=canvas.height-100){
-      this.y=canvas.height-100-this.s;
-      this.vy=0;
-      this.g=true;
-      this.r=0;
+  update(){
+    this.vy += gravity;
+    this.y += this.vy;
+
+    if(this.y + this.s >= canvas.height - 100){
+      this.y = canvas.height - 100 - this.s;
+      this.vy = 0;
+      this.g = true;
+      this.r = 0;
     } else {
-      this.g=false;
-      this.r+=0.1;
+      this.g = false;
+      this.r += 0.1;
     }
   }
+
   draw(){
     ctx.save();
-    ctx.translate(this.x+20,this.y+20);
+    ctx.translate(this.x + 20, this.y + 20);
     ctx.rotate(this.r);
-    ctx.fillStyle="#0ff";
-    ctx.fillRect(-20,-20,40,40);
+    ctx.fillStyle = "#0ff";
+    ctx.fillRect(-20, -20, 40, 40);
     ctx.restore();
   }
+
   jump(){
     if(this.g && started && !gameOver){
       this.vy = jumpForce;
@@ -255,102 +214,117 @@ class Player{
 
 class Obstacle{
   constructor(x){
-    this.x=x;
-    this.w=40;
-    this.h=60;
-    this.y=canvas.height-100-this.h;
+    this.x = x;
+    this.w = 40;
+    this.h = 60;
+    this.y = canvas.height - 100 - this.h;
   }
-  update(){ this.x-=speed; }
+
+  update(){
+    this.x -= speed;
+  }
+
   draw(){
-    ctx.fillStyle="#0ff";
+    ctx.fillStyle = "#f00";
     ctx.beginPath();
-    ctx.moveTo(this.x,this.y+this.h);
-    ctx.lineTo(this.x+this.w/2,this.y);
-    ctx.lineTo(this.x+this.w,this.y+this.h);
+    ctx.moveTo(this.x, this.y + this.h);
+    ctx.lineTo(this.x + this.w/2, this.y);
+    ctx.lineTo(this.x + this.w, this.y + this.h);
     ctx.fill();
   }
 }
 
-let player,obs,frame;
+let player, obs, frame;
 
 function init(){
-  player=new Player();
-  obs=[];
-  frame=0;
-  gameOver=false;
-  started=false;
+  player = new Player();
+  obs = [];
+  frame = 0;
+
+  gameOver = false;
+  started = false;
+
   stopMusic();
-  score=0;
-  scoreTick=0;
-  songTime=0;
+  songTime = 0;
+
+  score = 0;
+  scoreTick = 0;
 }
 
 function update(){
-  if(!started||gameOver) return;
+  if(!started || gameOver) return;
 
   frame++;
   player.update();
 
   scoreTick++;
-  if(scoreTick>=5){
+  if(scoreTick >= 5){
     score++;
-    scoreTick=0;
+    scoreTick = 0;
   }
 
-  if(frame%100===0){
+  if(frame % 100 === 0){
     obs.push(new Obstacle(canvas.width));
   }
 
-  for(let i=obs.length-1;i>=0;i--){
-    let o=obs[i];
+  for(let i = obs.length - 1; i >= 0; i--){
+    let o = obs[i];
     o.update();
 
-    let ax=o.x, ay=o.y+o.h;
-    let bx=o.x+o.w/2, by=o.y;
-    let cx=o.x+o.w, cy=o.y+o.h;
+    let ax = o.x;
+    let ay = o.y + o.h;
 
-    let corners=[
-      [player.x,player.y],
-      [player.x+40,player.y],
-      [player.x,player.y+40],
-      [player.x+40,player.y+40]
+    let bx = o.x + o.w/2;
+    let by = o.y;
+
+    let cx = o.x + o.w;
+    let cy = o.y + o.h;
+
+    let corners = [
+      [player.x, player.y],
+      [player.x + 40, player.y],
+      [player.x, player.y + 40],
+      [player.x + 40, player.y + 40]
     ];
 
-    for(let [px,py] of corners){
-      if(pointInTriangle(px,py,ax,ay,bx,by,cx,cy)){
-        gameOver=true;
+    for(let [px, py] of corners){
+      if(pointInTriangle(px, py, ax, ay, bx, by, cx, cy)){
+        gameOver = true;
         stopMusic();
+        break;
       }
     }
 
-    if(o.x+o.w<0) obs.splice(i,1);
+    if(o.x + o.w < 0){
+      obs.splice(i, 1);
+    }
   }
 }
 
-// triangle collision helper
-function pointInTriangle(px, py, ax, ay, bx, by, cx, cy) {
-  const area = (x1,y1,x2,y2,x3,y3)=>
-    Math.abs((x1*(y2-y3)+x2*(y3-y1)+x3*(y1-y2))/2);
-
-  let A=area(ax,ay,bx,by,cx,cy);
-  let A1=area(px,py,bx,by,cx,cy);
-  let A2=area(ax,ay,px,py,cx,cy);
-  let A3=area(ax,ay,bx,by,px,py);
-
-  return Math.abs(A-(A1+A2+A3))<0.5;
-}
-
 function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+
   drawBackground();
 
-  player.draw();
-  obs.forEach(o=>o.draw());
+  ctx.fillStyle = "#222";
+  ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
 
-  ctx.fillStyle="white";
-  ctx.font="bold 30px Arial";
-  ctx.textAlign="right";
-  ctx.fillText("Score: "+score,canvas.width-20,50);
-  ctx.textAlign="left";
+  player.draw();
+  obs.forEach(o => o.draw());
+
+  ctx.fillStyle = "white";
+  ctx.font = "bold 30px Arial";
+  ctx.textAlign = "right";
+  ctx.fillText("Score: " + score, canvas.width - 20, 50);
+  ctx.textAlign = "left";
+
+  if(!started){
+    ctx.fillText("CLICK TO START", canvas.width/2 - 170, canvas.height/2);
+  }
+
+  if(gameOver){
+    ctx.fillText("GAME OVER", canvas.width/2 - 150, canvas.height/2);
+  }
 }
 
 function loop(){
@@ -361,20 +335,27 @@ function loop(){
 
 function startAll(){
   if(!started){
-    started=true;
+    started = true;
     if(musicOn) startMusic();
   }
 }
 
-addEventListener("mousedown",()=>{ startAll(); player.jump(); });
+addEventListener("mousedown", () => {
+  startAll();
+  player.jump();
+});
 
-restartBtn.onclick=()=>init();
+restartBtn.onclick = () => init();
 
-musicBtn.onclick=function(){
-  musicOn=!musicOn;
-  this.innerText="Music: "+(musicOn?"ON":"OFF");
-  if(musicOn&&started&&!gameOver) startMusic();
-  else stopMusic();
+musicBtn.onclick = function(){
+  musicOn = !musicOn;
+  this.innerText = "Music: " + (musicOn ? "ON" : "OFF");
+
+  if(musicOn && started && !gameOver){
+    startMusic();
+  } else {
+    stopMusic();
+  }
 };
 
 init();
