@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>GD Clone (Controlled Random Jumps)</title>
+<title>GD Clone (Faster Balanced)</title>
 <style>
 body { margin:0; overflow:hidden; background:#111; }
 canvas { display:block; }
@@ -32,14 +32,13 @@ resize();
 
 
 // =====================
-// ⚖️ BALANCED PHYSICS
+// ⚡ FASTER GAMEPLAY (balanced)
 // =====================
 let gravity = 0.5;
 let jumpForce = -12;
-let speed = 4.4;
 
-let gameOver = false;
-let started = false;
+// 🔥 increased speed
+let speed = 5.2;
 
 
 // =====================
@@ -50,7 +49,7 @@ let scoreTick = 0;
 
 
 // =====================
-// MUSIC (minimal safe)
+// MUSIC (unchanged)
 // =====================
 let audioCtx;
 let musicOn = true;
@@ -110,13 +109,13 @@ function startMusic(){
   lastUpdateTime = performance.now();
 
   loopInterval = setInterval(()=>{
-    if(!musicOn || gameOver) return;
+    if(!musicOn) return;
 
     let now = performance.now();
     songTime += (now - lastUpdateTime) / 1000;
     lastUpdateTime = now;
 
-    let tempo = 132;
+    let tempo = 135;
     let beat = 60 / tempo;
     let step = Math.floor(songTime / beat) % 16;
 
@@ -125,9 +124,9 @@ function startMusic(){
       playNote(330, 0.2);
     }
 
-    playNote(520 + (step % 4) * 18, 0.1, "triangle", 0.07);
+    playNote(520 + (step % 4) * 18, 0.09, "triangle", 0.07);
 
-  }, 100);
+  }, 95);
 }
 
 function stopMusic(){
@@ -247,19 +246,18 @@ function pointInTriangle(px, py, ax, ay, bx, by, cx, cy){
 
 
 // =====================
-// 🎯 CONTROLLED RANDOM SPAWNING (KEY PART)
+// CONTROLLED RANDOM SPAWN (REBALANCED)
 // =====================
 let player, spikes;
 
 let spawnTimer = 0;
 
-// base spacing + safe randomness
-let baseGap = 85;
+// slightly tighter spacing because game is faster
+let baseGap = 78;
 
 function getSafeGap(){
-  // small variation BUT ALWAYS SAFE
-  let offset = (Math.random() * 20) - 10; // -10 to +10
-  return Math.max(75, Math.min(95, baseGap + offset));
+  let offset = (Math.random() * 16) - 8;
+  return Math.max(70, Math.min(88, baseGap + offset));
 }
 
 let currentGap = getSafeGap();
@@ -313,7 +311,7 @@ function update(){
   if(spawnTimer >= currentGap){
     spikes.push(new Spike(canvas.width));
     spawnTimer = 0;
-    currentGap = getSafeGap(); // new random safe spacing each spike
+    currentGap = getSafeGap();
   }
 
   for(let i = spikes.length - 1; i >= 0; i--){
