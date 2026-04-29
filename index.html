@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>GD Clone (Accurate Hitboxes)</title>
+<title>GD Clone (Accurate Hitboxes + Level End)</title>
 <style>
 body { margin:0; overflow:hidden; background:#111; }
 canvas { display:block; }
@@ -37,9 +37,11 @@ let speed = 6;
 let gameOver = false;
 let started = false;
 
-// SCORE
+// SCORE + END
 let score = 0;
 let scoreTick = 0;
+let levelComplete = false;
+const endScore = 300;
 
 // MUSIC
 let audioCtx;
@@ -50,15 +52,46 @@ let loopInterval = null;
 let songTime = 0;
 let lastUpdateTime = 0;
 
-// ===== SPACEBAR FIX (IMPORTANT) =====
-addEventListener("keydown", (e) => {
-  if(e.code === "Space"){
-    e.preventDefault(); // stops page scroll
-    startAll();
-    player.jump();
-  }
-});
+// BACKGROUND
+function drawBackground(){
+  let grad = ctx.createLinearGradient(0,0,0,canvas.height);
+  grad.addColorStop(0, "#05070c");
+  grad.addColorStop(1, "#000000");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
 
+  let t = performance.now() * 0.0003;
+
+  ctx.fillStyle = "rgba(0,255,140,0.05)";
+  for(let i = 0; i < 25; i++){
+    let x = (i * 180 + Math.sin(t + i) * 40) % (canvas.width + 200);
+    let y = (i * 90) % canvas.height;
+    drawLeaf(x, y, 30 + (i % 3) * 10);
+  }
+
+  let fade = ctx.createLinearGradient(0,0,0,canvas.height);
+  fade.addColorStop(0, "rgba(0,0,0,0.2)");
+  fade.addColorStop(1, "rgba(0,0,0,0.85)");
+  ctx.fillStyle = fade;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  ctx.strokeStyle = "rgba(0,255,200,0.25)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, canvas.height - 100);
+  ctx.lineTo(canvas.width, canvas.height - 100);
+  ctx.stroke();
+}
+
+function drawLeaf(x, y, size){
+  ctx.beginPath();
+  ctx.moveTo(x, y);
+  ctx.quadraticCurveTo(x + size/2, y - size, x + size, y);
+  ctx.quadraticCurveTo(x + size/2, y + size, x, y);
+  ctx.fill();
+}
+
+// MUSIC
 function playNote(freq, dur, type="sawtooth", vol=0.1){
   let o = audioCtx.createOscillator();
   let g = audioCtx.createGain();
@@ -126,7 +159,7 @@ function stopMusic(){
   }
 }
 
-// TRIANGLE COLLISION
+// COLLISION
 function pointInTriangle(px, py, ax, ay, bx, by, cx, cy) {
   const area = (x1,y1,x2,y2,x3,y3) =>
     Math.abs((x1*(y2-y3)+x2*(y3-y1)+x3*(y1-y2))/2);
@@ -212,6 +245,7 @@ function init(){
 
   gameOver = false;
   started = false;
+  levelComplete = false;
 
   stopMusic();
   songTime = 0;
@@ -230,9 +264,15 @@ function update(){
   if(scoreTick >= 5){
     score++;
     scoreTick = 0;
+
+    if(score >= endScore){
+      levelComplete = true;
+      gameOver = true;
+      stopMusic();
+    }
   }
 
-  if(frame % 100 === 0){
+  if(!levelComplete && frame % 100 === 0){
     obs.push(new Obstacle(canvas.width));
   }
 
@@ -260,7 +300,6 @@ function update(){
       if(pointInTriangle(px, py, ax, ay, bx, by, cx, cy)){
         gameOver = true;
         stopMusic();
-        break;
       }
     }
 
@@ -272,6 +311,8 @@ function update(){
 
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
+
+  drawBackground();
 
   ctx.fillStyle = "#222";
   ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
@@ -285,11 +326,18 @@ function draw(){
   ctx.fillText("Score: " + score, canvas.width - 20, 50);
   ctx.textAlign = "left";
 
+  if(levelComplete){
+    ctx.textAlign = "center";
+    ctx.font = "60px Arial";
+    ctx.fillText("LEVEL COMPLETE!", canvas.width/2, canvas.height/2);
+  }
+
   if(!started){
+    ctx.textAlign = "left";
     ctx.fillText("CLICK TO START", canvas.width/2 - 170, canvas.height/2);
   }
 
-  if(gameOver){
+  if(gameOver && !levelComplete){
     ctx.fillText("GAME OVER", canvas.width/2 - 150, canvas.height/2);
   }
 }
@@ -307,7 +355,6 @@ function startAll(){
   }
 }
 
-// mouse still works
 addEventListener("mousedown", () => {
   startAll();
   player.jump();
