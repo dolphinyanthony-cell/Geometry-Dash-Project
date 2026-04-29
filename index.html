@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>GD Clone (Score + Music Fixed)</title>
+<title>GD Clone (Clean HUD)</title>
 <style>
 body { margin:0; overflow:hidden; background:#111; }
 canvas { display:block; }
@@ -13,6 +13,7 @@ button { padding:8px 12px; margin-right:5px; background:#333; color:white; borde
 <body>
 
 <canvas id="game"></canvas>
+
 <div id="ui">
   <button id="restartBtn">Restart</button>
   <button id="musicBtn">Music: ON</button>
@@ -21,17 +22,26 @@ button { padding:8px 12px; margin-right:5px; background:#333; color:white; borde
 <script>
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
-function resize(){ canvas.width=innerWidth; canvas.height=innerHeight; }
-addEventListener("resize", resize); resize();
 
-let gravity=0.6, jumpForce=-12, speed=6;
-let gameOver=false, started=false;
+function resize(){
+  canvas.width = innerWidth;
+  canvas.height = innerHeight;
+}
+addEventListener("resize", resize);
+resize();
+
+let gravity = 0.6;
+let jumpForce = -12;
+let speed = 6;
+
+let gameOver = false;
+let started = false;
 
 // ===== SCORE =====
 let score = 0;
-let scoreTick = 0; // slows score gain
+let scoreTick = 0;
 
-// ===== MUSIC SYSTEM =====
+// ===== MUSIC =====
 let audioCtx;
 let musicOn = true;
 let musicRunning = false;
@@ -51,7 +61,9 @@ function playNote(freq, dur, type="sawtooth", vol=0.1){
   g.gain.linearRampToValueAtTime(vol, audioCtx.currentTime + 0.01);
   g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
 
-  o.connect(g); g.connect(audioCtx.destination);
+  o.connect(g);
+  g.connect(audioCtx.destination);
+
   o.start();
   o.stop(audioCtx.currentTime + dur);
 }
@@ -83,7 +95,7 @@ function startMusic(){
     lastUpdateTime = now;
 
     let tempo = 140;
-    let beat = 60/tempo;
+    let beat = 60 / tempo;
     let step = Math.floor(songTime / beat) % 16;
 
     if(step % 4 === 0){
@@ -129,117 +141,184 @@ function stopMusic(){
 
 // ===== GAME =====
 class Player{
-  constructor(){ this.x=150; this.y=canvas.height-150; this.s=40; this.vy=0; this.g=false; this.r=0;}
-  update(){
-    this.vy+=gravity; this.y+=this.vy;
-    if(this.y+this.s>=canvas.height-100){
-      this.y=canvas.height-100-this.s;
-      this.vy=0; this.g=true; this.r=0;
-    } else { this.g=false; this.r+=0.1; }
+  constructor(){
+    this.x = 150;
+    this.y = canvas.height - 150;
+    this.s = 40;
+    this.vy = 0;
+    this.g = false;
+    this.r = 0;
   }
+
+  update(){
+    this.vy += gravity;
+    this.y += this.vy;
+
+    if(this.y + this.s >= canvas.height - 100){
+      this.y = canvas.height - 100 - this.s;
+      this.vy = 0;
+      this.g = true;
+      this.r = 0;
+    } else {
+      this.g = false;
+      this.r += 0.1;
+    }
+  }
+
   draw(){
     ctx.save();
-    ctx.translate(this.x+20,this.y+20);
+    ctx.translate(this.x + 20, this.y + 20);
     ctx.rotate(this.r);
-    ctx.fillStyle="#0ff";
-    ctx.fillRect(-20,-20,40,40);
+    ctx.fillStyle = "#0ff";
+    ctx.fillRect(-20, -20, 40, 40);
     ctx.restore();
   }
-  jump(){ if(this.g && started && !gameOver) this.vy=jumpForce; }
+
+  jump(){
+    if(this.g && started && !gameOver){
+      this.vy = jumpForce;
+    }
+  }
 }
 
 class Obstacle{
-  constructor(x){ this.x=x; this.w=40; this.h=60; this.y=canvas.height-100-this.h;}
-  update(){ this.x-=speed; }
+  constructor(x){
+    this.x = x;
+    this.w = 40;
+    this.h = 60;
+    this.y = canvas.height - 100 - this.h;
+  }
+
+  update(){
+    this.x -= speed;
+  }
+
   draw(){
-    ctx.fillStyle="#f00";
+    ctx.fillStyle = "#f00";
     ctx.beginPath();
-    ctx.moveTo(this.x,this.y+this.h);
-    ctx.lineTo(this.x+20,this.y);
-    ctx.lineTo(this.x+40,this.y+this.h);
+    ctx.moveTo(this.x, this.y + this.h);
+    ctx.lineTo(this.x + 20, this.y);
+    ctx.lineTo(this.x + 40, this.y + this.h);
     ctx.fill();
   }
 }
 
-let player,obs,frame;
+let player, obs, frame;
 
 function init(){
-  player=new Player(); obs=[]; frame=0;
-  gameOver=false; started=false;
+  player = new Player();
+  obs = [];
+  frame = 0;
+
+  gameOver = false;
+  started = false;
+
   stopMusic();
   songTime = 0;
+
   score = 0;
   scoreTick = 0;
 }
 
 function update(){
-  if(!started||gameOver) return;
-  frame++; player.update();
+  if(!started || gameOver) return;
 
-  // slower score increase
+  frame++;
+  player.update();
+
   scoreTick++;
-  if(scoreTick >= 5){ // adjust this number to control speed
+  if(scoreTick >= 5){
     score++;
     scoreTick = 0;
   }
 
-  if(frame%100===0) obs.push(new Obstacle(canvas.width));
+  if(frame % 100 === 0){
+    obs.push(new Obstacle(canvas.width));
+  }
 
-  for(let i=obs.length-1;i>=0;i--){
-    let o=obs[i]; o.update();
-    if(player.x<o.x+o.w && player.x+40>o.x && player.y<o.y+o.h && player.y+40>o.y){
-      gameOver=true;
+  for(let i = obs.length - 1; i >= 0; i--){
+    let o = obs[i];
+    o.update();
+
+    if(
+      player.x < o.x + o.w &&
+      player.x + 40 > o.x &&
+      player.y < o.y + o.h &&
+      player.y + 40 > o.y
+    ){
+      gameOver = true;
       stopMusic();
     }
-    if(o.x+o.w<0) obs.splice(i,1);
+
+    if(o.x + o.w < 0){
+      obs.splice(i, 1);
+    }
   }
 }
 
 function draw(){
   ctx.clearRect(0,0,canvas.width,canvas.height);
-  ctx.fillStyle="#222";
-  ctx.fillRect(0,canvas.height-100,canvas.width,100);
+
+  ctx.fillStyle = "#222";
+  ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
 
   player.draw();
-  obs.forEach(o=>o.draw());
+  obs.forEach(o => o.draw());
 
-  // SCORE DISPLAY
+  // ===== SCORE (TOP RIGHT) =====
   ctx.fillStyle = "white";
-  ctx.font = "30px Arial";
-  ctx.fillText("Score: " + score, 20, 50);
+  ctx.font = "bold 30px Arial";
+  ctx.textAlign = "right";
+  ctx.shadowColor = "black";
+  ctx.shadowBlur = 5;
+  ctx.fillText("Score: " + score, canvas.width - 20, 50);
+  ctx.textAlign = "left";
+  ctx.shadowBlur = 0;
 
   if(!started){
-    ctx.fillStyle="white";
-    ctx.font="40px Arial";
-    ctx.fillText("CLICK TO START",canvas.width/2-170,canvas.height/2);
+    ctx.fillStyle = "white";
+    ctx.font = "40px Arial";
+    ctx.fillText("CLICK TO START", canvas.width/2 - 170, canvas.height/2);
   }
 
   if(gameOver){
-    ctx.fillStyle="white";
-    ctx.font="50px Arial";
-    ctx.fillText("GAME OVER",canvas.width/2-150,canvas.height/2);
+    ctx.fillStyle = "white";
+    ctx.font = "50px Arial";
+    ctx.fillText("GAME OVER", canvas.width/2 - 150, canvas.height/2);
   }
 }
 
-function loop(){ update(); draw(); requestAnimationFrame(loop); }
+function loop(){
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
 
 function startAll(){
   if(!started){
-    started=true;
+    started = true;
     if(musicOn) startMusic();
   }
 }
 
-addEventListener("mousedown",()=>{ startAll(); player.jump(); });
-addEventListener("keydown",e=>{
-  if(e.code==="Space"){ e.preventDefault(); startAll(); player.jump(); }
+addEventListener("mousedown", () => {
+  startAll();
+  player.jump();
 });
 
-restartBtn.onclick=()=>init();
+addEventListener("keydown", e => {
+  if(e.code === "Space"){
+    e.preventDefault();
+    startAll();
+    player.jump();
+  }
+});
 
-musicBtn.onclick=function(){
-  musicOn=!musicOn;
-  this.innerText="Music: "+(musicOn?"ON":"OFF");
+restartBtn.onclick = () => init();
+
+musicBtn.onclick = function(){
+  musicOn = !musicOn;
+  this.innerText = "Music: " + (musicOn ? "ON" : "OFF");
 
   if(musicOn && started && !gameOver){
     startMusic();
@@ -248,7 +327,9 @@ musicBtn.onclick=function(){
   }
 };
 
-init(); loop();
+init();
+loop();
 </script>
+
 </body>
 </html>
