@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>GD Clone (Snappy Physics Fix)</title>
+<title>GD Clone (Music Fixed)</title>
 <style>
 body { margin:0; overflow:hidden; background:#111; }
 canvas { display:block; }
@@ -32,16 +32,10 @@ resize();
 
 
 // =====================
-// ⚡ SNAPPY PHYSICS (KEY FIX)
+// GAME SETTINGS
 // =====================
-
-// 🔥 stronger gravity = less float = no jelly effect
 let gravity = 0.85;
-
-// 🔥 slightly stronger jump so it still feels good
 let jumpForce = -13.5;
-
-// world speed balanced to match jump arc
 let speed = 6.2;
 
 let gameOver = false;
@@ -49,14 +43,84 @@ let started = false;
 
 
 // =====================
-// SCORE
+// AUDIO FIX (IMPORTANT)
 // =====================
-let score = 0;
-let scoreTick = 0;
+let audioCtx;
+let musicOn = true;
+let musicRunning = false;
+let loopInterval;
+
+let songTime = 0;
+let lastUpdateTime = 0;
+
+function unlockAudio(){
+  if(!audioCtx){
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if(audioCtx.state === "suspended"){
+    audioCtx.resume();
+  }
+}
 
 
 // =====================
-// INPUT
+// MUSIC ENGINE
+// =====================
+function playNote(freq, dur, type="sawtooth", vol=0.08){
+  let o = audioCtx.createOscillator();
+  let g = audioCtx.createGain();
+
+  o.type = type;
+  o.frequency.value = freq;
+
+  g.gain.setValueAtTime(0.0001, audioCtx.currentTime);
+  g.gain.linearRampToValueAtTime(vol, audioCtx.currentTime + 0.01);
+  g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
+
+  o.connect(g);
+  g.connect(audioCtx.destination);
+
+  o.start();
+  o.stop(audioCtx.currentTime + dur);
+}
+
+function startMusic(){
+  if(musicRunning) return;
+
+  unlockAudio();
+
+  musicRunning = true;
+  lastUpdateTime = performance.now();
+
+  loopInterval = setInterval(()=>{
+    if(!musicOn || gameOver) return;
+
+    let now = performance.now();
+    songTime += (now - lastUpdateTime) / 1000;
+    lastUpdateTime = now;
+
+    let tempo = 140;
+    let beat = 60 / tempo;
+    let step = Math.floor(songTime / beat) % 16;
+
+    if(step % 4 === 0){
+      playNote(220, 0.2);
+      playNote(330, 0.2);
+    }
+
+    playNote(520 + (step % 4) * 20, 0.1, "triangle", 0.07);
+
+  }, 100);
+}
+
+function stopMusic(){
+  musicRunning = false;
+  clearInterval(loopInterval);
+}
+
+
+// =====================
+// INPUT (FIXED AUDIO UNLOCK)
 // =====================
 window.addEventListener("keydown", (e)=>{
   if(e.code === "Space"){
@@ -89,7 +153,6 @@ class Player{
     this.vy += gravity;
     this.y += this.vy;
 
-    // tighter ground snap (removes float)
     let ground = canvas.height - 100 - this.s;
 
     if(this.y >= ground){
@@ -99,7 +162,7 @@ class Player{
       this.r = 0;
     } else {
       this.g = false;
-      this.r += 0.08;
+      this.r += 0.07;
     }
   }
 
@@ -121,7 +184,7 @@ class Player{
 
 
 // =====================
-// SPIKES
+// SPIKE
 // =====================
 class Spike{
   constructor(x){
@@ -167,7 +230,7 @@ class Spike{
 
 
 // =====================
-// TRIANGLE HITBOX
+// HITBOX
 // =====================
 function pointInTriangle(px, py, ax, ay, bx, by, cx, cy){
   const area = (x1,y1,x2,y2,x3,y3)=>
@@ -183,19 +246,18 @@ function pointInTriangle(px, py, ax, ay, bx, by, cx, cy){
 
 
 // =====================
-// SPAWN (slightly tighter for faster feel)
+// GAME STATE
 // =====================
 let player, spikes;
 let spawnTimer = 0;
-
 let baseGap = 65;
 
-function getSafeGap(){
-  let offset = (Math.random() * 10) - 5;
-  return Math.max(55, Math.min(75, baseGap + offset));
+function getGap(){
+  let o = (Math.random()*10)-5;
+  return Math.max(55, Math.min(75, baseGap + o));
 }
 
-let currentGap = getSafeGap();
+let currentGap = getGap();
 
 function init(){
   player = new Player();
@@ -204,17 +266,19 @@ function init(){
   gameOver = false;
   started = false;
 
-  score = 0;
-  scoreTick = 0;
-
   spawnTimer = 0;
-  currentGap = getSafeGap();
+  currentGap = getGap();
+
+  stopMusic();
+  songTime = 0;
 }
 
 function startAll(){
   if(!started){
     started = true;
   }
+  unlockAudio();
+  if(musicOn) startMusic();
 }
 
 
@@ -226,18 +290,11 @@ function update(){
 
   player.update();
 
-  scoreTick++;
-  if(scoreTick >= 3){
-    score++;
-    scoreTick = 0;
-  }
-
   spawnTimer++;
-
   if(spawnTimer >= currentGap){
     spikes.push(new Spike(canvas.width));
     spawnTimer = 0;
-    currentGap = getSafeGap();
+    currentGap = getGap();
   }
 
   for(let i = spikes.length - 1; i >= 0; i--){
@@ -246,6 +303,7 @@ function update(){
 
     if(s.hit(player)){
       gameOver = true;
+      stopMusic();
     }
 
     if(s.x + s.w < 0){
@@ -264,9 +322,9 @@ function draw(){
   spikes.forEach(s=>s.draw());
 
   ctx.fillStyle = "white";
-  ctx.font = "bold 42px Arial";
+  ctx.font = "bold 40px Arial";
   ctx.textAlign = "right";
-  ctx.fillText("Score: " + score, canvas.width - 20, 60);
+  ctx.fillText("Score Game", canvas.width - 20, 60);
   ctx.textAlign = "left";
 
   if(!started){
@@ -283,6 +341,17 @@ function loop(){
   draw();
   requestAnimationFrame(loop);
 }
+
+
+// =====================
+// BUTTONS
+// =====================
+restartBtn.onclick = ()=>init();
+
+musicBtn.onclick = function(){
+  musicOn = !musicOn;
+  this.innerText = "Music: " + (musicOn ? "ON" : "OFF");
+};
 
 
 // START
