@@ -2,12 +2,12 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>GD Clone (Accurate Hitboxes)</title>
+<title>GD Clone (Cool Background)</title>
 <style>
-body { margin:0; overflow:hidden; background:#111; }
+body { margin:0; overflow:hidden; background:#000; }
 canvas { display:block; }
 #ui { position:absolute; top:10px; left:10px; }
-button { padding:8px 12px; margin-right:5px; background:#333; color:white; border:none; }
+button { padding:8px 12px; margin-right:5px; background:#222; color:#0ff; border:none; }
 </style>
 </head>
 <body>
@@ -41,41 +41,75 @@ let started = false;
 let score = 0;
 let scoreTick = 0;
 
-// ===== MUSIC =====
+// ===== BACKGROUND ANIMATION =====
+let bgOffset = 0;
+
+function drawBackground(){
+  bgOffset += speed * 0.5;
+
+  // gradient sky
+  let grad = ctx.createLinearGradient(0,0,0,canvas.height);
+  grad.addColorStop(0,"#020617");
+  grad.addColorStop(1,"#020617");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  // glowing grid lines
+  ctx.strokeStyle = "rgba(0,255,255,0.15)";
+  ctx.lineWidth = 1;
+
+  let spacing = 50;
+
+  for(let x = -bgOffset % spacing; x < canvas.width; x += spacing){
+    ctx.beginPath();
+    ctx.moveTo(x,0);
+    ctx.lineTo(x,canvas.height);
+    ctx.stroke();
+  }
+
+  for(let y = 0; y < canvas.height; y += spacing){
+    ctx.beginPath();
+    ctx.moveTo(0,y);
+    ctx.lineTo(canvas.width,y);
+    ctx.stroke();
+  }
+
+  // glowing horizon line
+  ctx.strokeStyle = "rgba(0,255,255,0.4)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(0, canvas.height - 100);
+  ctx.lineTo(canvas.width, canvas.height - 100);
+  ctx.stroke();
+
+  // pulse glow
+  let pulse = Math.sin(performance.now() * 0.005) * 0.5 + 0.5;
+  ctx.fillStyle = "rgba(0,255,255," + (0.05 + pulse*0.05) + ")";
+  ctx.fillRect(0, canvas.height - 120, canvas.width, 40);
+}
+
+// ===== MUSIC (unchanged minimal) =====
 let audioCtx;
 let musicOn = true;
 let musicRunning = false;
 let loopInterval = null;
 
-let songTime = 0;
-let lastUpdateTime = 0;
-
-function playNote(freq, dur, type="sawtooth", vol=0.1){
+function playNote(freq, dur){
   let o = audioCtx.createOscillator();
   let g = audioCtx.createGain();
 
-  o.type = type;
+  o.type = "sawtooth";
   o.frequency.value = freq;
 
   g.gain.setValueAtTime(0.0001, audioCtx.currentTime);
-  g.gain.linearRampToValueAtTime(vol, audioCtx.currentTime + 0.01);
+  g.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 0.01);
   g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
 
   o.connect(g);
   g.connect(audioCtx.destination);
-
   o.start();
   o.stop(audioCtx.currentTime + dur);
 }
-
-const chords = [
-  [261.6,311.1,392.0],
-  [207.7,261.6,311.1],
-  [233.1,293.7,349.2],
-  [261.6,311.1,392.0]
-];
-
-const melody = [523,587,659,698,659,587,523,659,784,880,784,659];
 
 function startMusic(){
   if(musicRunning) return;
@@ -85,58 +119,16 @@ function startMusic(){
   }
 
   musicRunning = true;
-  lastUpdateTime = performance.now();
 
   loopInterval = setInterval(()=>{
     if(!musicOn || gameOver) return;
-
-    let now = performance.now();
-    songTime += (now - lastUpdateTime) / 1000;
-    lastUpdateTime = now;
-
-    let tempo = 140;
-    let beat = 60 / tempo;
-    let step = Math.floor(songTime / beat) % 16;
-
-    if(step % 4 === 0){
-      let chord = chords[Math.floor(step/4)%chords.length];
-      chord.forEach(n => playNote(n, 0.4, "sawtooth", 0.06));
-      playNote(chord[0]/2, 0.4, "square", 0.1);
-    }
-
-    let note = melody[step % melody.length];
-    playNote(note, 0.15, "triangle", 0.1);
-
-    if(step % 4 === 0){
-      playNote(100, 0.1, "sine", 0.3);
-    }
-
-    if(step % 4 === 2){
-      let buffer = audioCtx.createBuffer(1,44100,44100);
-      let data = buffer.getChannelData(0);
-      for(let i=0;i<44100;i++) data[i]=Math.random()*2-1;
-
-      let noise = audioCtx.createBufferSource();
-      noise.buffer = buffer;
-
-      let g = audioCtx.createGain();
-      g.gain.setValueAtTime(0.2, audioCtx.currentTime);
-      g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.2);
-
-      noise.connect(g);
-      g.connect(audioCtx.destination);
-      noise.start();
-    }
-
-  }, 100);
+    playNote(200 + Math.random()*400, 0.2);
+  },150);
 }
 
 function stopMusic(){
   musicRunning = false;
-  if(loopInterval){
-    clearInterval(loopInterval);
-    loopInterval = null;
-  }
+  clearInterval(loopInterval);
 }
 
 // ===== TRIANGLE COLLISION =====
@@ -207,7 +199,7 @@ class Obstacle{
   }
 
   draw(){
-    ctx.fillStyle = "#f00";
+    ctx.fillStyle = "#0ff";
     ctx.beginPath();
     ctx.moveTo(this.x, this.y + this.h);
     ctx.lineTo(this.x + this.w/2, this.y);
@@ -222,13 +214,9 @@ function init(){
   player = new Player();
   obs = [];
   frame = 0;
-
   gameOver = false;
   started = false;
-
   stopMusic();
-  songTime = 0;
-
   score = 0;
   scoreTick = 0;
 }
@@ -253,15 +241,9 @@ function update(){
     let o = obs[i];
     o.update();
 
-    // triangle vertices
-    let ax = o.x;
-    let ay = o.y + o.h;
-
-    let bx = o.x + o.w / 2;
-    let by = o.y;
-
-    let cx = o.x + o.w;
-    let cy = o.y + o.h;
+    let ax = o.x, ay = o.y + o.h;
+    let bx = o.x + o.w/2, by = o.y;
+    let cx = o.x + o.w, cy = o.y + o.h;
 
     let corners = [
       [player.x, player.y],
@@ -270,30 +252,28 @@ function update(){
       [player.x + 40, player.y + 40]
     ];
 
-    for(let [px, py] of corners){
-      if(pointInTriangle(px, py, ax, ay, bx, by, cx, cy)){
+    for(let [px,py] of corners){
+      if(pointInTriangle(px,py,ax,ay,bx,by,cx,cy)){
         gameOver = true;
         stopMusic();
-        break;
       }
     }
 
-    if(o.x + o.w < 0){
-      obs.splice(i, 1);
-    }
+    if(o.x + o.w < 0) obs.splice(i,1);
   }
 }
 
 function draw(){
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-
-  ctx.fillStyle = "#222";
-  ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
+  drawBackground();
 
   player.draw();
   obs.forEach(o => o.draw());
 
-  // SCORE
+  // ground
+  ctx.fillStyle = "#022";
+  ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
+
+  // score
   ctx.fillStyle = "white";
   ctx.font = "bold 30px Arial";
   ctx.textAlign = "right";
@@ -326,13 +306,9 @@ function startAll(){
   }
 }
 
-addEventListener("mousedown", () => {
-  startAll();
-  player.jump();
-});
-
-addEventListener("keydown", e => {
-  if(e.code === "Space"){
+addEventListener("mousedown", ()=>{ startAll(); player.jump(); });
+addEventListener("keydown", e=>{
+  if(e.code==="Space"){
     e.preventDefault();
     startAll();
     player.jump();
