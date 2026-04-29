@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>GD Clone (Fixed Slow Motion)</title>
+<title>GD Clone (Snappy Physics Fix)</title>
 <style>
 body { margin:0; overflow:hidden; background:#111; }
 canvas { display:block; }
@@ -32,15 +32,17 @@ resize();
 
 
 // =====================
-// ⚡ REAL SPEED FIX (IMPORTANT)
+// ⚡ SNAPPY PHYSICS (KEY FIX)
 // =====================
 
-// base physics unchanged
-let gravity = 0.52;
-let jumpForce = -12.2;
+// 🔥 stronger gravity = less float = no jelly effect
+let gravity = 0.85;
 
-// 🔥 THIS is the real fix (was too low before)
-let worldSpeed = 7.5;
+// 🔥 slightly stronger jump so it still feels good
+let jumpForce = -13.5;
+
+// world speed balanced to match jump arc
+let speed = 6.2;
 
 let gameOver = false;
 let started = false;
@@ -51,18 +53,6 @@ let started = false;
 // =====================
 let score = 0;
 let scoreTick = 0;
-
-
-// =====================
-// MUSIC (unchanged minimal)
-// =====================
-let audioCtx;
-let musicOn = true;
-let musicRunning = false;
-let loopInterval = null;
-
-let songTime = 0;
-let lastUpdateTime = 0;
 
 
 // =====================
@@ -83,65 +73,6 @@ addEventListener("mousedown", ()=>{
 
 
 // =====================
-// MUSIC
-// =====================
-function playNote(freq, dur, type="sawtooth", vol=0.08){
-  let o = audioCtx.createOscillator();
-  let g = audioCtx.createGain();
-
-  o.type = type;
-  o.frequency.value = freq;
-
-  g.gain.setValueAtTime(0.0001, audioCtx.currentTime);
-  g.gain.linearRampToValueAtTime(vol, audioCtx.currentTime + 0.01);
-  g.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + dur);
-
-  o.connect(g);
-  g.connect(audioCtx.destination);
-
-  o.start();
-  o.stop(audioCtx.currentTime + dur);
-}
-
-function startMusic(){
-  if(musicRunning) return;
-
-  if(!audioCtx){
-    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  }
-
-  musicRunning = true;
-  lastUpdateTime = performance.now();
-
-  loopInterval = setInterval(()=>{
-    if(!musicOn) return;
-
-    let now = performance.now();
-    songTime += (now - lastUpdateTime) / 1000;
-    lastUpdateTime = now;
-
-    let tempo = 140;
-    let beat = 60 / tempo;
-    let step = Math.floor(songTime / beat) % 16;
-
-    if(step % 4 === 0){
-      playNote(220, 0.2);
-      playNote(330, 0.2);
-    }
-
-    playNote(520 + (step % 4) * 20, 0.09, "triangle", 0.07);
-
-  }, 90);
-}
-
-function stopMusic(){
-  musicRunning = false;
-  clearInterval(loopInterval);
-  loopInterval = null;
-}
-
-
-// =====================
 // PLAYER
 // =====================
 class Player{
@@ -158,14 +89,17 @@ class Player{
     this.vy += gravity;
     this.y += this.vy;
 
-    if(this.y + this.s >= canvas.height - 100){
-      this.y = canvas.height - 100 - this.s;
+    // tighter ground snap (removes float)
+    let ground = canvas.height - 100 - this.s;
+
+    if(this.y >= ground){
+      this.y = ground;
       this.vy = 0;
       this.g = true;
       this.r = 0;
     } else {
       this.g = false;
-      this.r += 0.07;
+      this.r += 0.08;
     }
   }
 
@@ -187,7 +121,7 @@ class Player{
 
 
 // =====================
-// SPIKE
+// SPIKES
 // =====================
 class Spike{
   constructor(x){
@@ -198,8 +132,7 @@ class Spike{
   }
 
   update(){
-    // 🔥 REAL SPEED FIX
-    this.x -= worldSpeed;
+    this.x -= speed;
   }
 
   draw(){
@@ -214,10 +147,8 @@ class Spike{
   hit(player){
     let ax = this.x;
     let ay = this.y + this.h;
-
     let bx = this.x + this.w/2;
     let by = this.y;
-
     let cx = this.x + this.w;
     let cy = this.y + this.h;
 
@@ -252,18 +183,16 @@ function pointInTriangle(px, py, ax, ay, bx, by, cx, cy){
 
 
 // =====================
-// SPAWN (SCALED FOR SPEED)
+// SPAWN (slightly tighter for faster feel)
 // =====================
 let player, spikes;
-
 let spawnTimer = 0;
 
-// 🔥 reduced spacing so speed feels correct
-let baseGap = 70;
+let baseGap = 65;
 
 function getSafeGap(){
-  let offset = (Math.random() * 14) - 7;
-  return Math.max(60, Math.min(80, baseGap + offset));
+  let offset = (Math.random() * 10) - 5;
+  return Math.max(55, Math.min(75, baseGap + offset));
 }
 
 let currentGap = getSafeGap();
@@ -280,20 +209,11 @@ function init(){
 
   spawnTimer = 0;
   currentGap = getSafeGap();
-
-  stopMusic();
-  songTime = 0;
 }
 
 function startAll(){
   if(!started){
     started = true;
-
-    if(!audioCtx){
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    }
-
-    if(musicOn) startMusic();
   }
 }
 
@@ -307,7 +227,7 @@ function update(){
   player.update();
 
   scoreTick++;
-  if(scoreTick >= 4){
+  if(scoreTick >= 3){
     score++;
     scoreTick = 0;
   }
@@ -326,7 +246,6 @@ function update(){
 
     if(s.hit(player)){
       gameOver = true;
-      stopMusic();
     }
 
     if(s.x + s.w < 0){
@@ -364,17 +283,6 @@ function loop(){
   draw();
   requestAnimationFrame(loop);
 }
-
-
-// =====================
-// BUTTONS
-// =====================
-restartBtn.onclick = ()=>init();
-
-musicBtn.onclick = function(){
-  musicOn = !musicOn;
-  this.innerText = "Music: " + (musicOn ? "ON" : "OFF");
-};
 
 
 // START
