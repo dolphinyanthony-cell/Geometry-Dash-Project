@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta charset="UTF-8">
-<title>GD Clone (Accurate Hitboxes + Fixed Input)</title>
+<title>GD Clone (With End)</title>
 <style>
 body { margin:0; overflow:hidden; background:#111; }
 canvas { display:block; }
@@ -36,12 +36,14 @@ let speed = 6;
 
 let gameOver = false;
 let started = false;
+let levelComplete = false;
 
-// SCORE
+// SCORE / END
 let score = 0;
 let scoreTick = 0;
+const endScore = 300;
 
-// MUSIC
+// ===== MUSIC =====
 let audioCtx;
 let musicOn = true;
 let musicRunning = false;
@@ -51,11 +53,9 @@ let songTime = 0;
 let lastUpdateTime = 0;
 
 // =====================
-// SPACEBAR FIX (IMPORTANT)
+// SPACE / INPUT
 // =====================
-window.focus();
-
-window.addEventListener("keydown", function(e){
+window.addEventListener("keydown", (e)=>{
   if(e.code === "Space"){
     e.preventDefault();
     startAll();
@@ -64,7 +64,7 @@ window.addEventListener("keydown", function(e){
 });
 
 // =====================
-// MUSIC
+// MUSIC (unchanged)
 // =====================
 function playNote(freq, dur, type="sawtooth", vol=0.1){
   let o = audioCtx.createOscillator();
@@ -136,8 +136,8 @@ function stopMusic(){
 // =====================
 // COLLISION
 // =====================
-function pointInTriangle(px, py, ax, ay, bx, by, cx, cy) {
-  const area = (x1,y1,x2,y2,x3,y3) =>
+function pointInTriangle(px, py, ax, ay, bx, by, cx, cy){
+  const area = (x1,y1,x2,y2,x3,y3)=>
     Math.abs((x1*(y2-y3)+x2*(y3-y1)+x3*(y1-y2))/2);
 
   let A = area(ax,ay,bx,by,cx,cy);
@@ -145,8 +145,29 @@ function pointInTriangle(px, py, ax, ay, bx, by, cx, cy) {
   let A2 = area(ax,ay,px,py,cx,cy);
   let A3 = area(ax,ay,bx,by,px,py);
 
-  return Math.abs(A - (A1 + A2 + A3)) < 0.5;
+  return Math.abs(A-(A1+A2+A3))<0.5;
 }
+
+// =====================
+// FINISH LINE
+// =====================
+const finishX = 6000; // distance to win
+
+function drawFinish(){
+  let screenX = finishX - cameraX;
+
+  ctx.fillStyle = "#0ff";
+  ctx.fillRect(screenX, canvas.height - 200, 10, 200);
+
+  ctx.fillStyle = "white";
+  ctx.font = "20px Arial";
+  ctx.fillText("FINISH", screenX - 20, canvas.height - 210);
+}
+
+// =====================
+// CAMERA
+// =====================
+let cameraX = 0;
 
 // =====================
 // GAME
@@ -174,6 +195,8 @@ class Player{
       this.g = false;
       this.r += 0.1;
     }
+
+    cameraX += speed;
   }
 
   draw(){
@@ -205,11 +228,13 @@ class Obstacle{
   }
 
   draw(){
+    let sx = this.x - cameraX;
+
     ctx.fillStyle = "#f00";
     ctx.beginPath();
-    ctx.moveTo(this.x, this.y + this.h);
-    ctx.lineTo(this.x + this.w/2, this.y);
-    ctx.lineTo(this.x + this.w, this.y + this.h);
+    ctx.moveTo(sx, this.y + this.h);
+    ctx.lineTo(sx + this.w/2, this.y);
+    ctx.lineTo(sx + this.w, this.y + this.h);
     ctx.fill();
   }
 }
@@ -223,12 +248,15 @@ function init(){
 
   gameOver = false;
   started = false;
-
-  stopMusic();
-  songTime = 0;
+  levelComplete = false;
 
   score = 0;
   scoreTick = 0;
+
+  cameraX = 0;
+
+  stopMusic();
+  songTime = 0;
 }
 
 function update(){
@@ -241,43 +269,54 @@ function update(){
   if(scoreTick >= 5){
     score++;
     scoreTick = 0;
+
+    if(score >= endScore){
+      levelComplete = true;
+      gameOver = true;
+      stopMusic();
+    }
   }
 
   if(frame % 100 === 0){
-    obs.push(new Obstacle(canvas.width));
+    obs.push(new Obstacle(cameraX + canvas.width));
   }
 
   for(let i = obs.length - 1; i >= 0; i--){
     let o = obs[i];
     o.update();
 
-    let ax = o.x;
+    let ax = o.x - cameraX;
     let ay = o.y + o.h;
 
-    let bx = o.x + o.w/2;
+    let bx = o.x - cameraX + o.w/2;
     let by = o.y;
 
-    let cx = o.x + o.w;
+    let cx = o.x - cameraX + o.w;
     let cy = o.y + o.h;
 
     let corners = [
       [player.x, player.y],
-      [player.x + 40, player.y],
-      [player.x, player.y + 40],
-      [player.x + 40, player.y + 40]
+      [player.x+40, player.y],
+      [player.x, player.y+40],
+      [player.x+40, player.y+40]
     ];
 
-    for(let [px, py] of corners){
-      if(pointInTriangle(px, py, ax, ay, bx, by, cx, cy)){
+    for(let [px,py] of corners){
+      if(pointInTriangle(px,py,ax,ay,bx,by,cx,cy)){
         gameOver = true;
         stopMusic();
-        break;
       }
     }
 
-    if(o.x + o.w < 0){
-      obs.splice(i, 1);
+    if(o.x - cameraX + o.w < 0){
+      obs.splice(i,1);
     }
+  }
+
+  if(cameraX >= finishX){
+    levelComplete = true;
+    gameOver = true;
+    stopMusic();
   }
 }
 
@@ -287,21 +326,25 @@ function draw(){
   ctx.fillStyle = "#222";
   ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
 
+  drawFinish();
+
   player.draw();
-  obs.forEach(o => o.draw());
+  obs.forEach(o=>o.draw());
 
   ctx.fillStyle = "white";
-  ctx.font = "bold 30px Arial";
+  ctx.font = "30px Arial";
   ctx.textAlign = "right";
   ctx.fillText("Score: " + score, canvas.width - 20, 50);
   ctx.textAlign = "left";
 
-  if(!started){
-    ctx.fillText("CLICK OR PRESS SPACE", canvas.width/2 - 200, canvas.height/2);
+  if(levelComplete){
+    ctx.textAlign = "center";
+    ctx.font = "60px Arial";
+    ctx.fillText("LEVEL COMPLETE!", canvas.width/2, canvas.height/2);
   }
 
-  if(gameOver){
-    ctx.fillText("GAME OVER", canvas.width/2 - 150, canvas.height/2);
+  if(!started){
+    ctx.fillText("CLICK OR SPACE TO START", canvas.width/2 - 200, canvas.height/2);
   }
 }
 
@@ -318,17 +361,17 @@ function startAll(){
   }
 }
 
-// mouse input
-addEventListener("mousedown", () => {
+// INPUT
+addEventListener("mousedown", ()=>{
   startAll();
   player.jump();
 });
 
-restartBtn.onclick = () => init();
+restartBtn.onclick = ()=>init();
 
 musicBtn.onclick = function(){
   musicOn = !musicOn;
-  this.innerText = "Music: " + (musicOn ? "ON" : "OFF");
+  this.innerText = "Music: " + (musicOn?"ON":"OFF");
 
   if(musicOn && started && !gameOver){
     startMusic();
